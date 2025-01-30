@@ -1,20 +1,46 @@
-import os, csv, sys, pickle
+import io
+import csv
+import sys
 from dataclasses import dataclass
 import numpy as np
 import matplotlib.pyplot as plt
 from urllib.request import urlretrieve
 from datetime import date
+import textwrap
+
+ONLY_REGULATED_SUBUNITS = True
+
+ComplexT = dict[str, list[str]]
+
+
+@dataclass(frozen=True)
+class SubunitInfo:
+    complex_id: str
+    name: str
+    subunit: str
+    measure: list[tuple[float, float]]
 
 
 @dataclass(frozen=True)
 class Complexome:
     file: str
-    complexes: dict[str, list[str]]
+    complexes: ComplexT
     complex_names: dict[str, str]
-    complex_GO_terms: dict[str, list[str]]
+    complex_GO_terms: ComplexT
+    proteomics_data: dict[str, tuple[float, float]]
+    all_perturbed_complexes: list[SubunitInfo]
+    LOG2FC_THRESHOLD: float = 2.0
+    ADJP_THRESHOLD: float = 0.05
+    topN_GOterms_to_plot: int = 10
 
 
-def setup(organism_taxon_id: str = "9606") -> Complexome:
+def setup(
+    proteomics_data: str,
+    LOG2FC_THRESHOLD: float,
+    ADJP_THRESHOLD: float,
+    topN_GOterms_to_plot: int,
+    organism_taxon_id: str = "9606",
+) -> Complexome:
     today = date.today()
     ComplexomeSavedFile = (
         organism_taxon_id + ".tsv"
@@ -38,7 +64,26 @@ def setup(organism_taxon_id: str = "9606") -> Complexome:
         ComplexomeFile,
     )
 
-    return parse_complexome_data(organism_taxon_id, ComplexomeFile)
+    complexes, complex_names, complex_GO_terms = parse_complexome_data(
+        organism_taxon_id, ComplexomeFile
+    )
+    if len(proteomics_data) > 1:
+        raise RuntimeError("Cannot accept multiple input files")
+    parsed_proteomics_data = parse_user_proteomics_data(list(proteomics_data.values())[0])
+
+    return Complexome(
+        file=ComplexomeFile,
+        complexes=complexes,
+        complex_names=complex_names,
+        complex_GO_terms=complex_GO_terms,
+        LOG2FC_THRESHOLD=LOG2FC_THRESHOLD,
+        ADJP_THRESHOLD=ADJP_THRESHOLD,
+        topN_GOterms_to_plot=topN_GOterms_to_plot,
+        proteomics_data=parsed_proteomics_data,
+        all_perturbed_complexes=identify_perturbed_complexes(
+            complexes, complex_names, parsed_proteomics_data, LOG2FC_THRESHOLD, ADJP_THRESHOLD
+        ),
+    )
 
 
 def addComplexParticipants(participantsList, members):
@@ -80,7 +125,9 @@ def write_to_csv(moleculeList, outputFileName):
             outputFile.write(molecule + "\n")
 
 
-def parse_complexome_data(organism_taxon_id: str, complexome_file: str) -> Complexome:
+def parse_complexome_data(
+    organism_taxon_id: str, complexome_file: str
+) -> tuple[ComplexT, dict[str, str], ComplexT]:
     # Open and parse the Complex Portal data file and collect the per complex list of participants.
     Complexes = {}
     ComplexNames = {}
@@ -138,12 +185,7 @@ def parse_complexome_data(organism_taxon_id: str, complexome_file: str) -> Compl
                 print("Complex ID already exists:", complexID)
                 print("Stopping for checks!!")
                 sys.exit()
-    return Complexome(
-        file=complexome_file,
-        complexes=Complexes,
-        complex_names=ComplexNames,
-        complex_GO_terms=ComplexesGOTerms,
-    )
+    return (Complexes, ComplexNames, ComplexesGOTerms)
 
 
 def summary_statistics(complexome: Complexome) -> None:
@@ -287,3 +329,78 @@ def shared_protein_subunits(complexome: Complexome) -> None:
     plt.yticks(size=14)
     plt.title("Distribution of shared protein subunits", fontsize=18)
     plt.show()
+
+
+# Function to word wrap long GO term names (used as axis labels).
+def wrap_labels(ax, width, topN_GOterms_to_plot, break_long_words=False):
+    # Based on https://medium.com/dunder-data/automatically-wrap-graph-labels-in-matplotlib-and-seaborn-a48740bc9ce
+    labels = []
+    for label in ax.get_xticklabels():
+        text = label.get_text()
+        labels.append(
+            textwrap.fill(text, width=width, break_long_words=break_long_words)
+        )
+    ax.set_xticks(np.arange(topN_GOterms_to_plot))  # new addition -- checking.
+    ax.set_xticklabels(labels, rotation=40, ha="right", va="top")
+
+
+def parse_user_proteomics_data(data: bytes) -> dict[str, tuple[float, float]]:
+    isHeader = True  # The proteomics csv data file contains a header line. Set to 'False' otherwise.
+    uniprotID_column = 0
+    log2FC_column = 1
+    adjPval_column = 2
+
+    proteomicsData = {}
+    csvReader = csv.reader(io.StringIO(data.decode('utf8')), delimiter=",")
+    for row in csvReader:
+        if isHeader:
+            isHeader = False
+            continue
+        else:
+            uniprotID = row[uniprotID_column]
+            log2FC = row[log2FC_column]
+            adjPVal = row[adjPval_column]
+            proteomicsData[uniprotID] = (log2FC, adjPVal)
+
+    return proteomicsData
+
+
+def identify_perturbed_complexes(
+    Complexes: ComplexT,
+    ComplexNames: dict[str, str],
+    proteomicsData: dict[str, tuple[float, float]],
+    LOG2FC_THRESHOLD: float,
+    ADJP_THRESHOLD: float,
+) -> list[SubunitInfo]:
+    allPerturbedComplexes = []
+    for complexId in Complexes:
+        complexMembers = Complexes[complexId]
+        complexName = ComplexNames[complexId]
+
+        # Check if at least one member of this complex has an omics measurement.
+        OmicsMeasuredComplex = False
+        measuredSubunits = []  # Has an omics measurement.
+        regulatedSubunits = []  # Fulfills the criteria for a differentially expressed subunit.
+
+        for member in complexMembers:
+            if member in proteomicsData:
+                measuredSubunits.append(member)
+                if ONLY_REGULATED_SUBUNITS:
+                    log2FCValue = abs(float(proteomicsData[member][0]))
+                    adjPValue = round(float(proteomicsData[member][1]), 2)
+                    if log2FCValue >= LOG2FC_THRESHOLD and adjPValue <= ADJP_THRESHOLD:
+                        OmicsMeasuredComplex = True
+                        regulatedSubunits.append(member)
+                    else:
+                        OmicsMeasuredComplex = True
+
+        if OmicsMeasuredComplex:
+            for subunit in regulatedSubunits:
+                subunit_info = SubunitInfo(
+                    complex_id=complexId,
+                    name=complexName,
+                    subunit=subunit,
+                    measure=[tuple(data) for data in proteomicsData],
+                )
+                allPerturbedComplexes.append(subunit_info)
+    return allPerturbedComplexes
