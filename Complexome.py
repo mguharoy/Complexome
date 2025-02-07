@@ -11,6 +11,8 @@ import textwrap
 ONLY_REGULATED_SUBUNITS = True
 
 ComplexT = dict[str, list[str]]
+FileName = str
+FileContents = bytes
 
 
 @dataclass(frozen=True)
@@ -35,7 +37,9 @@ class Complexome:
 
 
 def setup(
-    proteomics_data: str,
+    proteomics_data: dict[
+        FileName, FileContents
+    ],  # This is a mapping that we get from Colab
     LOG2FC_THRESHOLD: float,
     ADJP_THRESHOLD: float,
     topN_GOterms_to_plot: int,
@@ -69,7 +73,9 @@ def setup(
     )
     if len(proteomics_data) > 1:
         raise RuntimeError("Cannot accept multiple input files")
-    parsed_proteomics_data = parse_user_proteomics_data(list(proteomics_data.values())[0])
+    parsed_proteomics_data = parse_user_proteomics_data(
+        list(proteomics_data.values())[0]
+    )
 
     return Complexome(
         file=ComplexomeFile,
@@ -81,12 +87,19 @@ def setup(
         topN_GOterms_to_plot=topN_GOterms_to_plot,
         proteomics_data=parsed_proteomics_data,
         all_perturbed_complexes=identify_perturbed_complexes(
-            complexes, complex_names, parsed_proteomics_data, LOG2FC_THRESHOLD, ADJP_THRESHOLD
+            complexes,
+            complex_names,
+            parsed_proteomics_data,
+            LOG2FC_THRESHOLD,
+            ADJP_THRESHOLD,
         ),
     )
 
 
-def addComplexParticipants(participantsList, members):
+def addComplexParticipants(participantsList: str, members=None) -> list[str]:
+    if members is None:
+        members = []
+
     for participant in participantsList.split("|"):
         participantId = participant.split("(")[0]
         if "[" in participantId:
@@ -157,8 +170,7 @@ def parse_complexome_data(
                 sys.exit()
 
             # Extract information about the participants of the complex. Participants can include proteins (UniProtKB), chemical entities (ChEBI), RNA (RNAcentral) and complexes (Complex Portal).
-            complexMembers = []
-            complexMembers = addComplexParticipants(complexParticipants, complexMembers)
+            complexMembers = addComplexParticipants(complexParticipants)
 
             # Check if one or more participants are themselves complexes. In that case, the expanded list of protein members are contained in the Expanded participant list (last) column.
             if "CPX-" in complexParticipants:
@@ -298,8 +310,8 @@ def shared_protein_subunits(complexome: Complexome) -> None:
         proteinSubunitsPerComplex[complex_id] = proteinSubunits
     proteinsInNumComplexes = {}
     for protein in uniqueProteins:
-        for complex in proteinSubunitsPerComplex:
-            if protein in proteinSubunitsPerComplex[complex]:
+        for protienSubunits in proteinSubunitsPerComplex.values():
+            if protein in proteinSubunits:
                 if protein not in proteinsInNumComplexes:
                     proteinsInNumComplexes[protein] = 1
                 else:
@@ -318,7 +330,7 @@ def shared_protein_subunits(complexome: Complexome) -> None:
     plt.figure(figsize=(10, 6))
     plt.bar(
         list(sharedSubunitsPerComplex.keys()),
-        sharedSubunitsPerComplex.values(),
+        list(sharedSubunitsPerComplex.values()),
         color="g",
     )
     plt.xlabel("Number of complexes", fontsize=16)
@@ -351,7 +363,7 @@ def parse_user_proteomics_data(data: bytes) -> dict[str, tuple[float, float]]:
     adjPval_column = 2
 
     proteomicsData = {}
-    csvReader = csv.reader(io.StringIO(data.decode('utf8')), delimiter=",")
+    csvReader = csv.reader(io.StringIO(data.decode("utf8")), delimiter=",")
     for row in csvReader:
         if isHeader:
             isHeader = False
@@ -360,7 +372,7 @@ def parse_user_proteomics_data(data: bytes) -> dict[str, tuple[float, float]]:
             uniprotID = row[uniprotID_column]
             log2FC = row[log2FC_column]
             adjPVal = row[adjPval_column]
-            proteomicsData[uniprotID] = (log2FC, adjPVal)
+            proteomicsData[uniprotID] = (float(log2FC), float(adjPVal))
 
     return proteomicsData
 
@@ -400,7 +412,7 @@ def identify_perturbed_complexes(
                     complex_id=complexId,
                     name=complexName,
                     subunit=subunit,
-                    measure=[tuple(data) for data in proteomicsData],
+                    measure=list(proteomicsData.values()),
                 )
                 allPerturbedComplexes.append(subunit_info)
     return allPerturbedComplexes
