@@ -20,7 +20,8 @@ class SubunitInfo:
     complex_id: str
     name: str
     subunit: str
-    measure: list[tuple[float, float]]
+    log2fc: float
+    apvalue: float
 
 
 @dataclass(frozen=True)
@@ -408,11 +409,14 @@ def identify_perturbed_complexes(
 
         if OmicsMeasuredComplex:
             for subunit in regulatedSubunits:
+                (log2fc, apval) = proteomicsData[subunit]
                 subunit_info = SubunitInfo(
                     complex_id=complexId,
                     name=complexName,
                     subunit=subunit,
-                    measure=list(proteomicsData.values()),
+                    # measure=list(proteomicsData.values()),
+                    log2fc=log2fc,
+                    apvalue=apval,
                 )
                 allPerturbedComplexes.append(subunit_info)
     return allPerturbedComplexes
