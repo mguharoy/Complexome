@@ -28,7 +28,6 @@ function mkScale(protein_log2fc) {
  * @param {number}                           height      - height to make the SVG (default 800)
  */
 export async function draw(el, complex_id, protein_log2fc, width, height) {
-	const { App } = window.complexviewer;
 	const complexviewer = new App(el);
 	const theSVG = document.querySelector(".complexViewerSVG");
 	if (theSVG) {
