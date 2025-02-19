@@ -21,13 +21,20 @@ function mkScale(protein_log2fc) {
 }
 
 /**
- * @param {HtmlElement}                    el          - The DOM element to draw the viewer in
- * @param {string}                         complex_id  - The complexome complex identifier to draw
+ * @param {HtmlElement}                      el          - The DOM element to draw the viewer in
+ * @param {string}                           complex_id  - The complexome complex identifier to draw
  * @param {{protein: str, log2fc: number}[]} gene_log2fc - An optional param with a default value
+ * @param {number}                           width       - Width to make the SVG (default 800)
+ * @param {number}                           height      - height to make the SVG (default 800)
  */
-export async function draw(el, complex_id, protein_log2fc) {
+export async function draw(el, complex_id, protein_log2fc, width, height) {
 	const { App } = window.complexviewer;
 	const complexviewer = new App(el);
+	const theSVG = document.querySelector(".complexViewerSVG");
+	if (theSVG) {
+		theSVG.style.width = `${width ?? 800}px`;
+		theSVG.style.height = `${height ?? 800}px`;
+	}
 	const res = await fetch(`https://www.ebi.ac.uk/intact/complex-ws/export/${complex_id}`);
 	const data = await res.json();
 	complexviewer.readMIJSON(data);
