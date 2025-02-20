@@ -77,7 +77,7 @@ export function drawScale(protein_log2fc) {
 	inner.style.display = "flex";
 	subContainer.appendChild(inner);
 
-	protein_log2fc.map((val) => val.log2fc).toSorted().forEach((val) => {
+	protein_log2fc.map((val) => val.log2fc).toSorted((a, b) => a - b).forEach((val) => {
 		const bar = document.createElement("div");
 		bar.style.height = "100%";
 		bar.style.flex = "1 1 0%";
