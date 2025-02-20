@@ -311,7 +311,7 @@ def shared_protein_subunits(complexome: Complexome) -> None:
         proteinSubunitsPerComplex[complex_id] = proteinSubunits
     proteinsInNumComplexes = {}
     for protein in uniqueProteins:
-        for protienSubunits in proteinSubunitsPerComplex.values():
+        for proteinSubunits in proteinSubunitsPerComplex.values():
             if protein in proteinSubunits:
                 if protein not in proteinsInNumComplexes:
                     proteinsInNumComplexes[protein] = 1
