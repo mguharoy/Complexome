@@ -11,13 +11,17 @@ function mkScale(protein_log2fc) {
 	const scale = max_log2fc === min_log2fc ? 1.0 : (1.0 / (max_log2fc - min_log2fc));
 	const interp = interpolateRgb("purple", "orange");
 
-	return (fc) => {
-		if (fc === undefined) {
-			return "#fff";
+	return [
+		min_log2fc,
+		max_log2fc,
+		(fc) => {
+			if (fc === undefined) {
+				return "#fff";
+			}
+			//normalize the fc then get the interpolated colour
+			return interp(scale * (fc - min_log2fc));
 		}
-		//normalize the fc then get the interpolated colour
-		return interp(scale * (fc - min_log2fc));
-	}
+	];
 }
 
 /**
@@ -37,32 +41,21 @@ export async function draw(el, complex_id, protein_log2fc, width, height) {
 	const res = await fetch(`https://www.ebi.ac.uk/intact/complex-ws/export/${complex_id}`);
 	const data = await res.json();
 	complexviewer.readMIJSON(data);
-	// map proteins to DOM nodes
+
 	const allText = Array.from(el.querySelectorAll("svg text"));
-	const labels = new Map();
+	const [_1, _2, colour] = mkScale(protein_log2fc);
 	data.data.forEach((entry) => {
 		if (entry.identifier) {
-			labels.set(entry.identifier.id,
-								 [
-									 allText.find((el) => el.textContent === entry.label)?.parentNode,
-									 protein_log2fc.find((protein) => protein.protein === entry.identifier.id)?.log2fc
-								 ]
-								);
-		}
-	});
-	console.log(labels);
-	const colour = mkScale(protein_log2fc);
-	labels
-		.entries()
-		.forEach(([prot, [parent, log2fc]]) => {
+			const parent = allText.find((el) => el.textContent === entry.label)?.parentNode;
+			const prot = entry.identifier.id;
+			const log2fc = protein_log2fc.find((protein) => protein.protein === entry.identifier.id)?.log2fc;
 			const children = Array.from(parent.childNodes);
 			// remove the groups
 			children.filter((el) => el.tagName.toLowerCase() === 'g')
 				.forEach((el) => parent.removeChild(el));
 			// colour
 			children[1].setAttribute("fill", colour(log2fc));
-		})
-
-	return labels;
+		}
+	});
 }
 
