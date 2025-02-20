@@ -59,3 +59,49 @@ export async function draw(el, complex_id, protein_log2fc, width, height) {
 	});
 }
 
+/**
+ * @param {{protein: str, log2fc: number}[]} protein_log2fc - A mapping of protein names to log2fc values
+ * @return {HTMLElement}
+ */
+export function drawScale(protein_log2fc) {
+	const [min, max, colour] = mkScale(protein_log2fc);
+
+	const container = document.createElement("div");
+	container.style.width = "100%";
+	container.style.maxWidth = "42rem";
+	const subContainer = document.createElement("div");
+	subContainer.style.position = "relative";
+	container.appendChild(subContainer);
+	const inner = document.createElement("div");
+	inner.style.height = "4rem";
+	inner.style.display = "flex";
+	subContainer.appendChild(inner);
+
+	protein_log2fc.map((val) => val.log2fc).toSorted().forEach((val) => {
+		const bar = document.createElement("div");
+		bar.style.height = "100%";
+		bar.style.flex = "1 1 0%";
+		bar.style.backgroundColor = colour(val);
+		inner.appendChild(bar);
+	});
+
+	const labels = document.createElement("div");
+	labels.style.display = "flex";
+	labels.style.marginTop = "0.5rem";
+	labels.style.justifyContent = "space-between";
+	subContainer.appendChild(labels);
+
+	const minLabel = document.createElement("span");
+	minLabel.style.fontSize = ".875rem";
+	minLabel.style.lineHeight = "1.25rem";
+	minLabel.textContent = min.toString();
+	labels.appendChild(minLabel);
+
+	const maxLabel = document.createElement("span");
+	maxLabel.style.fontSize = ".875rem";
+	maxLabel.style.lineHeight = "1.25rem";
+	maxLabel.textContent = max.toString();
+	labels.appendChild(maxLabel);
+
+	return container;
+}
