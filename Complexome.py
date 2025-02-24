@@ -3,7 +3,9 @@ import csv
 import sys
 from dataclasses import dataclass
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from urllib.request import urlretrieve
 from datetime import date
 import textwrap
@@ -343,6 +345,28 @@ def shared_protein_subunits(complexome: Complexome) -> None:
     plt.title("Distribution of shared protein subunits", fontsize=18)
     plt.show()
 
+
+def proteomicsCoverageOfComplexome(proteomicsData: dict[str, tuple[float, float]], complexome: Complexome) -> None:
+    proteomicsCoveragePerComplex={}
+    for complex_id, complex in complexome.complexes.items():
+    numSubunits=0
+    measuredSubunits=0
+    for subunit in complex:
+        if "CPX-" in subunit:
+            continue
+        elif "URS" in subunit:
+            continue
+        elif "CHEBI:" in subunit:
+            continue
+        else:
+            numSubunits+=1
+            canonicalUniProtID=subunit[:6]
+            if canonicalUniProtID in proteomicsData:
+                measuredSubunits+=1
+    proteomicsCoveragePerComplex[complex] = measuredSubunits/numSubunits
+    df = pd.DataFrame(list(proteomicsCoveragePerComplex.items()), columns=['Complex', 'ProteomicsCoverage'])
+    sns.histplot(df, x="ProteomicsCoverage")
+    plt.show()
 
 # Function to word wrap long GO term names (used as axis labels).
 def wrap_labels(ax, width, topN_GOterms_to_plot, break_long_words=False):
