@@ -3,9 +3,7 @@ import csv
 import sys
 from dataclasses import dataclass
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from urllib.request import urlretrieve
 from datetime import date
 import textwrap
@@ -346,27 +344,60 @@ def shared_protein_subunits(complexome: Complexome) -> None:
     plt.show()
 
 
-def proteomicsCoverageOfComplexome(proteomicsData: dict[str, tuple[float, float]], complexome: Complexome) -> None:
-    proteomicsCoveragePerComplex={}
+def proteomicsCoverageOfComplexome(
+    proteomicsData: dict[str, tuple[float, float]], complexome: Complexome
+) -> None:
+    proteomicsCoveragePerComplex: dict[str, float] = {}
     for complex_id, complex in complexome.complexes.items():
-    numSubunits=0
-    measuredSubunits=0
-    for subunit in complex:
-        if "CPX-" in subunit:
-            continue
-        elif "URS" in subunit:
-            continue
-        elif "CHEBI:" in subunit:
-            continue
+        numSubunits = 0
+        measuredSubunits = 0
+        for subunit in complex:
+            if "CPX-" in subunit:
+                continue
+            elif "URS" in subunit:
+                continue
+            elif "CHEBI:" in subunit:
+                continue
+            else:
+                numSubunits += 1
+                canonicalUniProtID = subunit[:6]
+                if canonicalUniProtID in proteomicsData:
+                    measuredSubunits += 1
+        proteomicsCoveragePerComplex[complex_id] = (measuredSubunits / numSubunits)
+
+    _min = min(proteomicsCoveragePerComplex.values())
+    _max = max(proteomicsCoveragePerComplex.values())
+    bins = min(len(proteomicsCoveragePerComplex), max(10, len(proteomicsCoveragePerComplex) // 160))
+    delta = (_max - _min) / bins
+
+    histogram: list[int] = []
+    xs: list[float] = []
+    _base = _min
+    i = 1
+    while _base < _max:
+        if i == bins:
+            top = _max + sys.float_info.epsilon
         else:
-            numSubunits+=1
-            canonicalUniProtID=subunit[:6]
-            if canonicalUniProtID in proteomicsData:
-                measuredSubunits+=1
-    proteomicsCoveragePerComplex[complex] = measuredSubunits/numSubunits
-    df = pd.DataFrame(list(proteomicsCoveragePerComplex.items()), columns=['Complex', 'ProteomicsCoverage'])
-    sns.histplot(df, x="ProteomicsCoverage")
+            top = _base + delta
+        histogram.append(sum(1 for _ in filter(lambda x: _base <= x < top, proteomicsCoveragePerComplex.values())))
+        xs.append(_base)
+        if i == bins:
+            _base = _max
+        else:
+            _base += delta
+        i += 1
+
+    assert sum(histogram) == len(proteomicsCoveragePerComplex), f"{sum(histogram)=} /= {len(proteomicsCoveragePerComplex)}"
+    plt.bar(
+        x=xs,
+        height=histogram,
+        width=delta,
+        align='edge'
+    )
+    plt.xlabel("Proteomics Coverage")
+    plt.ylabel("Count")
     plt.show()
+
 
 # Function to word wrap long GO term names (used as axis labels).
 def wrap_labels(ax, width, topN_GOterms_to_plot, break_long_words=False):
