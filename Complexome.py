@@ -1,10 +1,16 @@
+from typing import Optional
 import io
 import csv
 import sys
 from dataclasses import dataclass
-import matplotlib.pyplot as plt
-from urllib.request import urlretrieve
+from urllib.error import URLError
+from urllib.request import urlopen
+from pathlib import Path
 from datetime import date
+import time
+
+from matplotlib.axes import Axes
+import matplotlib.pyplot as plt
 import textwrap
 
 ONLY_REGULATED_SUBUNITS = True
@@ -25,7 +31,7 @@ class SubunitInfo:
 
 @dataclass(frozen=True)
 class Complexome:
-    file: str
+    file: Path
     complexes: ComplexT
     complex_names: dict[str, str]
     complex_GO_terms: ComplexT
@@ -34,6 +40,21 @@ class Complexome:
     LOG2FC_THRESHOLD: float = 2.0
     ADJP_THRESHOLD: float = 0.05
     topN_GOterms_to_plot: int = 10
+
+
+def _urlretrieve_with_retries(
+    url: str, filename: str, retries: int = 3, delay: float = 1.5
+) -> None:
+    for attempt in range(retries):
+        try:
+            with urlopen(url) as response, open(filename, mode="wb") as out_file:
+                out_file.write(response.read())
+            return
+        except URLError:
+            if attempt < retries - 1:
+                time.sleep(delay)
+            else:
+                raise
 
 
 def setup(
@@ -46,21 +67,21 @@ def setup(
     organism_taxon_id: str = "9606",
 ) -> Complexome:
     today = date.today()
-    ComplexomeSavedFile = (
+    ComplexomeSavedFile = Path(
         organism_taxon_id + ".tsv"
     )  # Downloaded complexome file in ComplexTAB format.
-    ComplexomeFile = (
+    ComplexomeFile = Path(
         organism_taxon_id + "Complexome_" + str(today) + ".tsv"
     )  # Rename complexome file with a date stamp for future reference.
 
-    urlretrieve(
-        "http://ftp.ebi.ac.uk/pub/databases/intact/complex/current/complextab/"
-        + ComplexomeSavedFile,
-        ComplexomeFile,
-    )
+    if not ComplexomeFile.exists():
+        _urlretrieve_with_retries(
+            f"https://ftp.ebi.ac.uk/pub/databases/intact/complex/current/complextab/{ComplexomeSavedFile}",
+            filename=str(ComplexomeFile),
+        )
 
     complexes, complex_names, complex_GO_terms = parse_complexome_data(
-        organism_taxon_id, ComplexomeFile
+        organism_taxon_id, str(ComplexomeFile)
     )
     if len(proteomics_data) > 1:
         raise RuntimeError("Cannot accept multiple input files")
@@ -227,25 +248,31 @@ def unique_identities(complexome: Complexome) -> tuple[list[str], list[str]]:
     return uniqueProteins, uniqueMetabolites
 
 
-def plot(complexome: Complexome) -> None:
+def plot(complexome: Complexome, axis: Optional[Axes] = None) -> Axes:
+    if axis is None:
+        axis = plt.subplot()
+
     numAllSubunitsPerComplexDist = ComplexSubunitNumbersDistribution(
         complexome.complexes
     )
-    plt.figure(figsize=(10, 6))
-    plt.bar(
+
+    axis.bar(
         list(numAllSubunitsPerComplexDist.keys()),
         numAllSubunitsPerComplexDist.values(),
         color="g",
     )
-    plt.xlabel("Number of subunits", fontsize=16)
-    plt.ylabel("Number of complexes", fontsize=16)
-    plt.xticks(size=14)
-    plt.yticks(size=14)
-    plt.title("Subunit distribution (proteins, metabolites, RNA)", fontsize=18)
-    plt.show()
+    axis.set_xlabel("Number of subunits", fontsize=16)
+    axis.set_ylabel("Number of complexes", fontsize=16)
+    axis.set_xticks(axis.get_xticks(), size=14)
+    axis.set_yticks(axis.get_yticks(), size=14)
+    axis.set_title("Subunit distribution (proteins, metabolites, RNA)", fontsize=18)
+
+    return axis
 
 
-def proteins_only(complexome: Complexome):
+def proteins_only(complexome: Complexome, axis: Optional[Axes] = None) -> Axes:
+    if axis is None:
+        axis = plt.subplot()
     # Iterate over the list of complexes and store the protein subunits only per complex.
     proteinSubunitsPerComplex = {}
     for complex_id, complex in complexome.complexes.items():
@@ -267,21 +294,22 @@ def proteins_only(complexome: Complexome):
         proteinSubunitsPerComplex
     )
 
-    plt.figure(figsize=(10, 6))
-    plt.bar(
+    axis.bar(
         list(numProteinSubunitsPerComplexDist.keys()),
         numProteinSubunitsPerComplexDist.values(),
         color="g",
     )
-    plt.xlabel("Number of protein subunits", fontsize=16)
-    plt.ylabel("Number of complexes", fontsize=16)
-    plt.xticks(size=14)
-    plt.yticks(size=14)
-    plt.title("Subunit distribution (proteins only)", fontsize=18)
-    plt.show()
+    axis.set_xlabel("Number of protein subunits", fontsize=16)
+    axis.set_ylabel("Number of complexes", fontsize=16)
+    axis.set_title("Subunit distribution (proteins only)", fontsize=18)
+    return axis
 
 
-def shared_protein_subunits(complexome: Complexome) -> None:
+def shared_protein_subunits(
+    complexome: Complexome, axis: Optional[Axes] = None
+) -> Axes:
+    if axis is None:
+        axis = plt.subplot()
     # Compute the distibution of shared protein subunits among the different complexes.
     uniqueProteins, uniqueMetabolites = unique_identities(complexome)
     proteinSubunitsPerComplex = {}
@@ -318,25 +346,26 @@ def shared_protein_subunits(complexome: Complexome) -> None:
         else:
             sharedSubunitsPerComplex[value] += 1
 
-    plt.figure(figsize=(10, 6))
-    plt.bar(
+    axis.bar(
         list(sharedSubunitsPerComplex.keys()),
         list(sharedSubunitsPerComplex.values()),
         color="g",
     )
-    plt.xlabel("Number of complexes", fontsize=16)
-    plt.ylabel("Number of proteins", fontsize=16)
-    plt.xticks(
+    axis.set_xlabel("Number of complexes", fontsize=16)
+    axis.set_ylabel("Number of proteins", fontsize=16)
+    axis.set_xticks(
         range(1, 11), ["1", "2", "3", "4", "5", "6", "7", "8", "9", ">10"], size=14
     )
-    plt.yticks(size=14)
-    plt.title("Distribution of shared protein subunits", fontsize=18)
-    plt.show()
+    axis.set_title("Distribution of shared protein subunits", fontsize=18)
+
+    return axis
 
 
-def proteomicsCoverageOfComplexome(
-    proteomicsData: dict[str, tuple[float, float]], complexome: Complexome
-) -> None:
+def proteomics_coverage_of_complexome(
+    complexome: Complexome, axis: Optional[Axes] = None
+) -> Axes:
+    if axis is None:
+        axis = plt.subplot()
     proteomicsCoveragePerComplex: dict[str, float] = {}
     for complex_id, complex in complexome.complexes.items():
         numSubunits = 0
@@ -351,17 +380,22 @@ def proteomicsCoverageOfComplexome(
             else:
                 numSubunits += 1
                 canonicalUniProtID = subunit[:6]
-                if canonicalUniProtID in proteomicsData:
+                if canonicalUniProtID in complexome.proteomics_data:
                     measuredSubunits += 1
         proteomicsCoveragePerComplex[complex_id] = measuredSubunits / numSubunits
 
     _min = min(proteomicsCoveragePerComplex.values())
     _max = max(proteomicsCoveragePerComplex.values())
-    bins = min(
-        len(proteomicsCoveragePerComplex),
-        max(10, len(proteomicsCoveragePerComplex) // 160),
-    )
-    delta = (_max - _min) / bins
+    if _min == _max:
+        _max = _max + sys.float_info.epsilon
+        bins = 1
+        delta = 1.0
+    else:
+        bins = min(
+            len(proteomicsCoveragePerComplex),
+            max(10, len(proteomicsCoveragePerComplex) // 160),
+        )
+        delta = (_max - _min) / bins
 
     histogram: list[int] = []
     xs: list[float] = []
@@ -390,10 +424,11 @@ def proteomicsCoverageOfComplexome(
     assert sum(histogram) == len(proteomicsCoveragePerComplex), (
         f"{sum(histogram)=} /= {len(proteomicsCoveragePerComplex)}"
     )
-    plt.bar(x=xs, height=histogram, width=delta, align="edge")
-    plt.xlabel("Proteomics Coverage")
-    plt.ylabel("Count")
-    plt.show()
+    axis.bar(x=xs, height=histogram, width=delta, align="edge", color="g")
+    axis.set_xbound(lower=0.0, upper=1.0)
+    axis.set_xlabel("Proteomics Coverage")
+    axis.set_ylabel("Count")
+    return axis
 
 
 # Function to word wrap long GO term names (used as axis labels).
@@ -405,7 +440,7 @@ def wrap_labels(ax, width, topN_GOterms_to_plot, break_long_words=False):
         labels.append(
             textwrap.fill(text, width=width, break_long_words=break_long_words)
         )
-    ax.set_xticks(np.arange(topN_GOterms_to_plot))  # new addition -- checking.
+    ax.set_xticks(range(topN_GOterms_to_plot))  # new addition -- checking.
     ax.set_xticklabels(labels, rotation=40, ha="right", va="top")
 
 
