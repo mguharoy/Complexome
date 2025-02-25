@@ -2,7 +2,6 @@ import io
 import csv
 import sys
 from dataclasses import dataclass
-import numpy as np
 import matplotlib.pyplot as plt
 from urllib.request import urlretrieve
 from datetime import date
@@ -328,7 +327,7 @@ def shared_protein_subunits(complexome: Complexome) -> None:
     plt.xlabel("Number of complexes", fontsize=16)
     plt.ylabel("Number of proteins", fontsize=16)
     plt.xticks(
-        np.arange(1, 11), ["1", "2", "3", "4", "5", "6", "7", "8", "9", ">10"], size=14
+        range(1, 11), ["1", "2", "3", "4", "5", "6", "7", "8", "9", ">10"], size=14
     )
     plt.yticks(size=14)
     plt.title("Distribution of shared protein subunits", fontsize=18)
