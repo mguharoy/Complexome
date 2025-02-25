@@ -53,15 +53,6 @@ def setup(
     ComplexomeFile = (
         organism_taxon_id + "Complexome_" + str(today) + ".tsv"
     )  # Rename complexome file with a date stamp for future reference.
-    # ppComplexesObject = (
-    #    organism_taxon_id + "Complexome_" + str(today) + ".pickle"
-    # )  # Create a pickle object of the complexome and save with a date stamp.
-    # ppComplexNamesObject = (
-    #    organism_taxon_id + "ComplexNames_" + str(today) + ".pickle"
-    # )  # Save the complex names.
-    # ppComplexGOTermsObject = (
-    #    organism_taxon_id + "ComplexGOTerms_" + str(today) + ".pickle"
-    # )  # Save the associated GO terms for each complex.
 
     urlretrieve(
         "http://ftp.ebi.ac.uk/pub/databases/intact/complex/current/complextab/"
@@ -363,11 +354,14 @@ def proteomicsCoverageOfComplexome(
                 canonicalUniProtID = subunit[:6]
                 if canonicalUniProtID in proteomicsData:
                     measuredSubunits += 1
-        proteomicsCoveragePerComplex[complex_id] = (measuredSubunits / numSubunits)
+        proteomicsCoveragePerComplex[complex_id] = measuredSubunits / numSubunits
 
     _min = min(proteomicsCoveragePerComplex.values())
     _max = max(proteomicsCoveragePerComplex.values())
-    bins = min(len(proteomicsCoveragePerComplex), max(10, len(proteomicsCoveragePerComplex) // 160))
+    bins = min(
+        len(proteomicsCoveragePerComplex),
+        max(10, len(proteomicsCoveragePerComplex) // 160),
+    )
     delta = (_max - _min) / bins
 
     histogram: list[int] = []
@@ -379,7 +373,14 @@ def proteomicsCoverageOfComplexome(
             top = _max + sys.float_info.epsilon
         else:
             top = _base + delta
-        histogram.append(sum(1 for _ in filter(lambda x: _base <= x < top, proteomicsCoveragePerComplex.values())))
+        histogram.append(
+            sum(
+                1
+                for _ in filter(
+                    lambda x: _base <= x < top, proteomicsCoveragePerComplex.values()
+                )
+            )
+        )
         xs.append(_base)
         if i == bins:
             _base = _max
@@ -387,13 +388,10 @@ def proteomicsCoverageOfComplexome(
             _base += delta
         i += 1
 
-    assert sum(histogram) == len(proteomicsCoveragePerComplex), f"{sum(histogram)=} /= {len(proteomicsCoveragePerComplex)}"
-    plt.bar(
-        x=xs,
-        height=histogram,
-        width=delta,
-        align='edge'
+    assert sum(histogram) == len(proteomicsCoveragePerComplex), (
+        f"{sum(histogram)=} /= {len(proteomicsCoveragePerComplex)}"
     )
+    plt.bar(x=xs, height=histogram, width=delta, align="edge")
     plt.xlabel("Proteomics Coverage")
     plt.ylabel("Count")
     plt.show()
