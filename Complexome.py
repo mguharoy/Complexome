@@ -8,9 +8,12 @@ from urllib.request import urlopen
 from pathlib import Path
 from datetime import date
 import time
+import pandas as pd
+import numpy as np
 
 from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 import textwrap
 
 ONLY_REGULATED_SUBUNITS = True
@@ -430,6 +433,57 @@ def proteomics_coverage_of_complexome(
     axis.set_ylabel("Count")
     return axis
 
+def plot_volcano(proteomicsData):
+    dfProteomics=pd.DataFrame.from_dict(proteomicsData, orient='index', columns=['log2FC', 'adjPval'])
+    dfProteomics.index.names=['UniProt ID']
+    dfProteomics=dfProteomics.reset_index()
+    dfProteomics[["log2FC", "adjPval"]] = dfProteomics[["log2FC", "adjPval"]].apply(pd.to_numeric)
+    p_values = dfProteomics['adjPval'].tolist()
+    transformed_pvals=[] # Volcano plot y-axis needs -log10(adjPval)
+    for value in p_values:
+        transformed_pvals.append(-1*np.log10(value))
+    dfProteomics['qvals'] = transformed_pvals
+
+    fig = go.Figure()
+    fig.update_layout(
+        title='Volcano plot',
+        xaxis_title='log2 FC',
+        yaxis_title='-log10 (adjPval)',
+        paper_bgcolor= 'white',
+        plot_bgcolor='white',
+    )
+
+    # We can play around with this. For example, when Complex Viewer is used to highlight a specific complex,
+    # this part can be used to show the complete Volcano plot with the specific subunits of the selected complex highlighted.
+    colors=[]
+    foldchanges=dfProteomics['log2FC'].tolist()
+    for i in range(0, len(foldchanges)):
+        if transformed_pvals[i] > -1*np.log10(ADJP_THRESHOLD):
+            if foldchanges[i] > LOG2FC_THRESHOLD:
+                colors.append('red')
+            elif foldchanges[i] < -1.0*LOG2FC_THRESHOLD:
+                colors.append('blue')
+            else:
+                colors.append('grey')
+        else:
+            colors.append('grey')
+
+    fig.add_trace(
+    go.Scattergl(
+        x = foldchanges,
+        y = transformed_pvals,
+        mode = 'markers',
+        text = dfProteomics['UniProt ID'].tolist(),
+        hovertemplate ='%{text}: %{x}<br>', #put the UniProtID: log2FC, adjPval, later use the gene name.
+        marker= {
+            'color':colors,
+            'size':6,
+        }
+    )
+    )
+    #adjust aspect ratio todo
+    #axis lines to show
+    fig.show()
 
 # Function to word wrap long GO term names (used as axis labels).
 def wrap_labels(ax, width, topN_GOterms_to_plot, break_long_words=False):
