@@ -1,6 +1,7 @@
 from typing import Optional
 import io
 import csv
+import math
 import sys
 from dataclasses import dataclass
 from urllib.error import URLError
@@ -431,6 +432,34 @@ def proteomics_coverage_of_complexome(
     axis.set_xbound(lower=0.0, upper=1.0)
     axis.set_xlabel("Proteomics Coverage")
     axis.set_ylabel("Count")
+    return axis
+
+
+def plot_volcano2(complexome: Complexome, axis: Optional[Axes] = None) -> Axes:
+    if axis is None:
+        axis = plt.subplot()
+
+    def colour(log2fc: float, pval: float) -> str:
+        if pval > -math.log10(complexome.ADJP_THRESHOLD):
+            if log2fc > complexome.LOG2FC_THRESHOLD:
+                return "tab:red"
+            elif log2fc < -complexome.LOG2FC_THRESHOLD:
+                return "tab:blue"
+            else:
+                return "tab:gray"
+        else:
+            return "tab:gray"
+
+    transformed_data = [
+        (log2FC, -math.log10(adj_pval))
+        for (log2FC, adj_pval) in complexome.proteomics_data.values()
+    ]
+    colours = [colour(*datum) for datum in transformed_data]
+    (xvals, yvals) = zip(*transformed_data)
+    axis.scatter(xvals, yvals, c=colours)
+    axis.set_title("Volcano plot")
+    axis.set_xlabel("log2 (FC)")
+    axis.set_ylabel("-log10 (adjPval)")
     return axis
 
 
