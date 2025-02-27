@@ -435,7 +435,9 @@ def proteomics_coverage_of_complexome(
     return axis
 
 
-def plot_volcano2(complexome: Complexome, axis: Optional[Axes] = None) -> Axes:
+def plot_volcano2(
+    complexome: Complexome, axis: Optional[Axes] = None, marker_size: Optional[int] = 20
+) -> Axes:
     if axis is None:
         axis = plt.subplot()
 
@@ -456,7 +458,7 @@ def plot_volcano2(complexome: Complexome, axis: Optional[Axes] = None) -> Axes:
     ]
     colours = [colour(*datum) for datum in transformed_data]
     (xvals, yvals) = zip(*transformed_data)
-    axis.scatter(xvals, yvals, c=colours)
+    axis.scatter(xvals, yvals, s=marker_size, c=colours)
     axis.set_title("Volcano plot")
     axis.set_xlabel("log2 (FC)")
     axis.set_ylabel("-log10 (adjPval)")
