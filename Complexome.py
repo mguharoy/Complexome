@@ -13,6 +13,7 @@ import time
 from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 import textwrap
+from unipressed import IdMappingClient
 
 ONLY_REGULATED_SUBUNITS = True
 
@@ -460,6 +461,39 @@ def plot_volcano(
     axis.set_xlabel("log2 (FC)")
     axis.set_ylabel("-log10 (adjPval)")
     return axis
+
+
+def uniprot_to_genename_mapping(complexome: Complexome) -> dict[str, str]:
+    uniqueProteinIDs, uniqueMetaboliteIDs = unique_identities(complexome)
+    canonicalProteinIDs=[]
+    for protein_id in uniqueProteinIDs:
+        if '-' in protein_id:
+            canonicalProteinsIDs.append(protein_id.split("-")[0]])
+        else:
+            canonicalProteinsIDs.append(protein_id)
+
+    request = IdMappingClient.submit(source="UniProtKB_AC-ID", dest="Gene_Name", ids=set(canonicalProteinIDs))
+    # put in a check to see whether the id conversion has completed? wait until then; this needs to be implemented.
+    id_mapping_dict={}
+    for mapped_id in list(request.each_result()):
+        id_mapping_dict[mapped_id['from']]=mapped_id['to']
+
+    complexome_protein_to_gene_id_mapping={}
+    for protein_id in uniqueProteinIDs:
+        if '-' in protein_id:
+            canonical_id=protein_id.split("-")[0]
+            try:
+                gene_name=id_mapping_dict[canonical_id]
+            except KeyError:
+                gene_name='NA'
+        else:
+            try:
+                gene_name=id_mapping_dict[protein_id]
+            except KeyError:
+                gene_name='NA'
+        complexome_protein_to_gene_id_mapping[protein_id]=gene_name
+
+    return complexome_protein_to_gene_id_mapping
 
 
 def wrap_labels(ax, width, topN_GOterms_to_plot, break_long_words=False):
