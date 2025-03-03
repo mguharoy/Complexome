@@ -107,13 +107,13 @@ export function drawScale(protein_log2fc) {
   const minLabel = document.createElement("span");
   minLabel.style.fontSize = ".875rem";
   minLabel.style.lineHeight = "1.25rem";
-  minLabel.textContent = min.toString();
+  minLabel.textContent = min.toFixed(2);
   labels.appendChild(minLabel);
 
   const maxLabel = document.createElement("span");
   maxLabel.style.fontSize = ".875rem";
   maxLabel.style.lineHeight = "1.25rem";
-  maxLabel.textContent = max.toString();
+  maxLabel.textContent = max.toFixed(2);
   labels.appendChild(maxLabel);
 
   return container;
