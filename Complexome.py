@@ -3,18 +3,20 @@ import io
 import csv
 import math
 import sys
+import json
+import time
 from dataclasses import dataclass
 from urllib.error import URLError
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
+from urllib.parse import urlencode
 from pathlib import Path
 from datetime import date
-import time
+import textwrap
 
 from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
-import textwrap
-from unipressed import IdMappingClient
 
+MAX_RETRIES = 20
 ONLY_REGULATED_SUBUNITS = True
 
 ComplexT = dict[str, list[str]]
@@ -38,124 +40,160 @@ class Complexome:
     complex_names: dict[str, str]
     complex_GO_terms: ComplexT
     proteomics_data: dict[str, tuple[float, float]]
-    all_perturbed_complexes: list[SubunitInfo]
-    LOG2FC_THRESHOLD: float = 2.0
-    ADJP_THRESHOLD: float = 0.05
-    topN_GOterms_to_plot: int = 10
+    gene_names: dict[str, str]
 
 
 def _urlretrieve_with_retries(
-    url: str, filename: str, retries: int = 3, delay: float = 1.5
-) -> None:
+    request: Request, retries: int = 3, delay: float = 1.5
+) -> tuple[dict[str, str], bytes]:
     for attempt in range(retries):
         try:
-            with urlopen(url) as response, open(filename, mode="wb") as out_file:
-                out_file.write(response.read())
-            return
+            with urlopen(request) as response:
+                headers = dict(response.headers)
+                return headers, response.read()
+
         except URLError:
             if attempt < retries - 1:
                 time.sleep(delay)
             else:
                 raise
 
+    raise RuntimeError("Should never be raised")
+
+
+def _fetch_genename_mapping(ids: set[str]) -> dict[str, str]:
+    params = urlencode(
+        {"from": "UniProtKB_AC-ID", "to": "Gene_Name", "ids": ",".join(ids)}
+    ).encode("utf-8")
+    request = Request(
+        "https://rest.uniprot.org/idmapping/run", data=params, method="POST"
+    )
+    request.add_header("Content-Type", "application/x-www-form-urlencoded")
+    _, data = _urlretrieve_with_retries(request)
+    response = json.loads(data.decode("utf-8"))
+    have_results = False
+    retries = 0
+    if (job := response.get("jobId")) is not None:
+        request = Request(
+            f"https://rest.uniprot.org/idmapping/status/{job}", method="GET"
+        )
+        while not have_results and retries < MAX_RETRIES:
+            headers, data = _urlretrieve_with_retries(request)
+            response = json.loads(data.decode("utf-8"))
+            if "results" in response:
+                get_results_url = headers.get("Link", "").split(";")[0].strip("<>")
+                total_results = int(headers.get("X-Total-Results", "0"))
+                have_results = True
+            else:
+                time.sleep(0.5)
+            retries += 1
+
+    expected = math.ceil(len(ids) / 25) + 10
+    counter = 0
+    results: dict[str, str] = {}
+    while have_results and len(results) < total_results and counter < expected:
+        headers, data = _urlretrieve_with_retries(
+            Request(get_results_url, method="GET")
+        )
+        response = json.loads(data.decode("utf-8"))
+        get_results_url = headers.get("Link", "").split(";")[0].strip("<>")
+        if get_results_url == "":
+            have_results = False
+        results.update({el.get("from"): el.get("to") for el in response.get("results")})
+        counter += 1
+
+    return results
+
 
 def setup(
     proteomics_data: dict[
         FileName, FileContents
     ],  # This is a mapping that we get from Colab
-    LOG2FC_THRESHOLD: float,
-    ADJP_THRESHOLD: float,
-    topN_GOterms_to_plot: int,
     organism_taxon_id: str = "9606",
 ) -> Complexome:
-    today = date.today()
-    ComplexomeSavedFile = Path(
-        organism_taxon_id + ".tsv"
-    )  # Downloaded complexome file in ComplexTAB format.
-    ComplexomeFile = Path(
-        organism_taxon_id + "Complexome_" + str(today) + ".tsv"
-    )  # Rename complexome file with a date stamp for future reference.
-
-    if not ComplexomeFile.exists():
-        _urlretrieve_with_retries(
-            f"https://ftp.ebi.ac.uk/pub/databases/intact/complex/current/complextab/{ComplexomeSavedFile}",
-            filename=str(ComplexomeFile),
-        )
-
-    complexes, complex_names, complex_GO_terms = parse_complexome_data(
-        organism_taxon_id, str(ComplexomeFile)
-    )
     if len(proteomics_data) > 1:
         raise RuntimeError("Cannot accept multiple input files")
-    parsed_proteomics_data = parse_user_proteomics_data(
+
+    complexome_file = Path(
+        organism_taxon_id + "Complexome_" + str(date.today()) + ".tsv"
+    )  # Rename complexome file with a date stamp for future reference.
+
+    if not complexome_file.exists():
+        _, data = _urlretrieve_with_retries(
+            Request(
+                f"https://ftp.ebi.ac.uk/pub/databases/intact/complex/current/complextab/{organism_taxon_id}.tsv"
+            )
+        )
+        complexome_file.write_bytes(data)
+
+    complexes, complex_names, complex_GO_terms = _parse_complexome_data(
+        organism_taxon_id, str(complexome_file)
+    )
+
+    protein_ids, _ = _unique_identities(list(complexes.values()))
+    gene_names = _fetch_genename_mapping(
+        {protein_id.split("-")[0] for protein_id in protein_ids}
+    )
+
+    parsed_proteomics_data = _parse_user_proteomics_data(
         list(proteomics_data.values())[0]
     )
 
+    # TODO: Remove the extra dependency
+    # TODO: Break out the adjustable parameters
     return Complexome(
-        file=ComplexomeFile,
+        file=complexome_file,
         complexes=complexes,
         complex_names=complex_names,
         complex_GO_terms=complex_GO_terms,
-        LOG2FC_THRESHOLD=LOG2FC_THRESHOLD,
-        ADJP_THRESHOLD=ADJP_THRESHOLD,
-        topN_GOterms_to_plot=topN_GOterms_to_plot,
+        gene_names=gene_names,
         proteomics_data=parsed_proteomics_data,
-        all_perturbed_complexes=identify_perturbed_complexes(
-            complexes,
-            complex_names,
-            parsed_proteomics_data,
-            LOG2FC_THRESHOLD,
-            ADJP_THRESHOLD,
-        ),
+        # all_perturbed_complexes=identify_perturbed_complexes(
+        #     complexes,
+        #     complex_names,
+        #     parsed_proteomics_data,
+        #     LOG2FC_THRESHOLD,
+        #     ADJP_THRESHOLD,
+        # ),
     )
 
 
-def addComplexParticipants(participantsList: str, members=None) -> list[str]:
+def _add_complex_participants(participants: str, members=None) -> list[str]:
     if members is None:
         members = []
 
-    for participant in participantsList.split("|"):
-        participantId = participant.split("(")[0]
-        if "[" in participantId:
+    for participant in participants.split("|"):
+        participant_id = participant.split("(")[0]
+        if "[" in participant_id:
             # This is in the case of molecule sets (paralogs that cannot be distinguished in this context).
             participant_ids = (
-                str(participantId).replace("[", "").replace("]", "").split(",")
+                str(participant_id).replace("[", "").replace("]", "").split(",")
             )
             for paralog in participant_ids:
                 if paralog not in members:
                     members.append(paralog)
         else:
-            if participantId not in members:
-                members.append(participantId)
+            if participant_id not in members:
+                members.append(participant_id)
 
     return members
 
 
-def ComplexSubunitNumbersDistribution(complexesDict):
-    numSubunitsPerComplex = {}
-    for key, value in complexesDict.items():
-        if len(value) not in numSubunitsPerComplex:
-            numSubunitsPerComplex[len(value)] = [key]
+def _complex_subunit_numbers_distribution(complexes: ComplexT) -> dict[int, int]:
+    num_subunits_per_complex = {}
+    for key, value in complexes.items():
+        if len(value) not in num_subunits_per_complex:
+            num_subunits_per_complex[len(value)] = [key]
         else:
-            numSubunitsPerComplex[len(value)].append(key)
+            num_subunits_per_complex[len(value)].append(key)
 
-    numSubunitsPerComplexDist = {
-        key: len(value) for key, value in numSubunitsPerComplex.items()
-    }
-
-    return numSubunitsPerComplexDist
+    return {key: len(value) for key, value in num_subunits_per_complex.items()}
 
 
-def write_to_csv(moleculeList, outputFileName):
-    with open(outputFileName, "w") as outputFile:
-        for molecule in moleculeList:
-            outputFile.write(molecule + "\n")
-
-
-def parse_complexome_data(
+def _parse_complexome_data(
     organism_taxon_id: str, complexome_file: str
 ) -> tuple[ComplexT, dict[str, str], ComplexT]:
-    # Open and parse the Complex Portal data file and collect the per complex list of participants.
+    "Parse the Complex Portal data file and collect the per complex list of participants."
     Complexes = {}
     ComplexNames = {}
     ComplexesGOTerms = {}
@@ -179,16 +217,16 @@ def parse_complexome_data(
 
             # Make sure that the organism taxon id is matching.
             if complexTaxonID != organism_taxon_id:
-                print(row)
-                print("Organism taxon id does not match with the expected organism!")
-                sys.exit()
+                raise RuntimeError(
+                    f"Organism taxon id does not match with the expected organism! {row}"
+                )
 
             # Extract information about the participants of the complex. Participants can include proteins (UniProtKB), chemical entities (ChEBI), RNA (RNAcentral) and complexes (Complex Portal).
-            complexMembers = addComplexParticipants(complexParticipants)
+            complexMembers = _add_complex_participants(complexParticipants)
 
             # Check if one or more participants are themselves complexes. In that case, the expanded list of protein members are contained in the Expanded participant list (last) column.
             if "CPX-" in complexParticipants:
-                complexMembers = addComplexParticipants(
+                complexMembers = _add_complex_participants(
                     complexExtendedParticipants, complexMembers
                 )
 
@@ -197,9 +235,7 @@ def parse_complexome_data(
                 Complexes[complexID] = complexMembers
                 ComplexNames[complexID] = complexName
             else:
-                print("Complex ID already exists:", complexID)
-                print("Stopping for checks!!")
-                sys.exit()
+                raise RuntimeError(f"Complex ID already exists: {complexID}")
 
             # Extract information about the annotated GO terms of the complex.
             complexGOTerms = complexAnnotatedGOTerms.split("|")
@@ -208,9 +244,8 @@ def parse_complexome_data(
             if complexID not in ComplexesGOTerms:
                 ComplexesGOTerms[complexID] = complexGOTerms
             else:
-                print("Complex ID already exists:", complexID)
-                print("Stopping for checks!!")
-                sys.exit()
+                raise RuntimeError(f"Complex ID already exists: {complexID}")
+
     return (Complexes, ComplexNames, ComplexesGOTerms)
 
 
@@ -223,46 +258,33 @@ def summary_statistics(complexome: Complexome) -> None:
     )
 
 
-def unique_identities(complexome: Complexome) -> tuple[list[str], list[str]]:
-    # Iterate over the list of complexes and store the unique proteins, metabolites and RNA molecules contained in that complexome.
-    uniqueProteins = []
-    uniqueMetabolites = []
-    for complex in complexome.complexes.values():
-        for subunit in complex:
+def _unique_identities(complexes: list[list[str]]) -> tuple[list[str], list[str]]:
+    "Find the unique proteins, metabolites and RNA molecules contained in that complexome."
+    unique_proteins = set()
+    unique_metabolites = set()
+    for cpx in complexes:
+        for subunit in cpx:
             if "CPX-" in subunit:
                 continue
             elif "URS" in subunit:
                 continue
             elif "CHEBI:" in subunit:
-                if subunit not in uniqueMetabolites:
-                    uniqueMetabolites.append(subunit)
+                unique_metabolites.add(subunit)
             else:
-                if subunit not in uniqueProteins:
-                    uniqueProteins.append(subunit)
+                unique_proteins.add(subunit)
 
-    # print("Total number of unique proteins:", len(uniqueProteins))
-    # print("Total number of unique metabolites:", len(uniqueMetabolites))
-
-    # write_to_csv(
-    #    uniqueMetabolites, organism_taxon_id + "_metabolites_" + str(today) + ".csv"
-    # )
-    # write_to_csv(uniqueProteins, organism_taxon_id + "_proteins_" + str(today) + ".csv")
-    return uniqueProteins, uniqueMetabolites
+    return list(unique_proteins), list(unique_metabolites)
 
 
 def plot(complexome: Complexome, axis: Optional[Axes] = None) -> Axes:
     if axis is None:
         axis = plt.subplot()
 
-    numAllSubunitsPerComplexDist = ComplexSubunitNumbersDistribution(
-        complexome.complexes
+    x, height = zip(
+        *_complex_subunit_numbers_distribution(complexome.complexes).items()
     )
 
-    axis.bar(
-        list(numAllSubunitsPerComplexDist.keys()),
-        numAllSubunitsPerComplexDist.values(),
-        color="g",
-    )
+    axis.bar(list(x), list(height), color="g")
     axis.set_xlabel("Number of subunits", fontsize=16)
     axis.set_ylabel("Number of complexes", fontsize=16)
     axis.set_xticks(axis.get_xticks(), size=14)
@@ -276,31 +298,23 @@ def proteins_only(complexome: Complexome, axis: Optional[Axes] = None) -> Axes:
     if axis is None:
         axis = plt.subplot()
     # Iterate over the list of complexes and store the protein subunits only per complex.
-    proteinSubunitsPerComplex = {}
-    for complex_id, complex in complexome.complexes.items():
-        proteinSubunits = []
-        for subunit in complex:
-            if "CPX-" in subunit:
-                continue
-            elif "URS" in subunit:
-                continue
-            elif "CHEBI:" in subunit:
-                continue
-            else:
-                if subunit not in proteinSubunits:
-                    proteinSubunits.append(subunit)
+    protein_subunits_per_complex = {}
+    for complex_id, cplx in complexome.complexes.items():
+        protein_subunits = {
+            subunit
+            for subunit in cplx
+            if "CPX-" not in subunit
+            and "URS" not in subunit
+            and "CHEBI:" not in subunit
+        }
 
-        proteinSubunitsPerComplex[complex_id] = proteinSubunits
+        protein_subunits_per_complex[complex_id] = list(protein_subunits)
 
-    numProteinSubunitsPerComplexDist = ComplexSubunitNumbersDistribution(
-        proteinSubunitsPerComplex
+    x, height = zip(
+        *_complex_subunit_numbers_distribution(protein_subunits_per_complex).items()
     )
 
-    axis.bar(
-        list(numProteinSubunitsPerComplexDist.keys()),
-        numProteinSubunitsPerComplexDist.values(),
-        color="g",
-    )
+    axis.bar(list(x), list(height), color="g")
     axis.set_xlabel("Number of protein subunits", fontsize=16)
     axis.set_ylabel("Number of complexes", fontsize=16)
     axis.set_title("Subunit distribution (proteins only)", fontsize=18)
@@ -313,7 +327,9 @@ def shared_protein_subunits(
     if axis is None:
         axis = plt.subplot()
     # Compute the distibution of shared protein subunits among the different complexes.
-    uniqueProteins, uniqueMetabolites = unique_identities(complexome)
+    uniqueProteins, uniqueMetabolites = _unique_identities(
+        list(complexome.complexes.values())
+    )
     proteinSubunitsPerComplex = {}
     for complex_id, complex in complexome.complexes.items():
         proteinSubunits = []
@@ -434,16 +450,20 @@ def proteomics_coverage_of_complexome(
 
 
 def plot_volcano(
-    complexome: Complexome, axis: Optional[Axes] = None, marker_size: Optional[int] = 20
+    complexome: Complexome,
+    axis: Optional[Axes] = None,
+    marker_size: Optional[int] = 20,
+    log2fc_threshold: float = 2.0,
+    adjp_threshold: float = 0.05,
 ) -> Axes:
     if axis is None:
         axis = plt.subplot()
 
     def colour(log2fc: float, pval: float) -> str:
-        if pval > -math.log10(complexome.ADJP_THRESHOLD):
-            if log2fc > complexome.LOG2FC_THRESHOLD:
+        if pval > -math.log10(adjp_threshold):
+            if log2fc > log2fc_threshold:
                 return "tab:red"
-            elif log2fc < -complexome.LOG2FC_THRESHOLD:
+            elif log2fc < -log2fc_threshold:
                 return "tab:blue"
             else:
                 return "tab:gray"
@@ -463,37 +483,8 @@ def plot_volcano(
     return axis
 
 
-def uniprot_to_genename_mapping(complexome: Complexome) -> dict[str, str]:
-    uniqueProteinIDs, uniqueMetaboliteIDs = unique_identities(complexome)
-    canonicalProteinIDs=[]
-    for protein_id in uniqueProteinIDs:
-        if '-' in protein_id:
-            canonicalProteinsIDs.append(protein_id.split("-")[0])
-        else:
-            canonicalProteinsIDs.append(protein_id)
-
-    request = IdMappingClient.submit(source="UniProtKB_AC-ID", dest="Gene_Name", ids=set(canonicalProteinIDs))
-    # put in a check to see whether the id conversion has completed? wait until then; this needs to be implemented.
-    id_mapping_dict={}
-    for mapped_id in list(request.each_result()):
-        id_mapping_dict[mapped_id['from']]=mapped_id['to']
-
-    complexome_protein_to_gene_id_mapping={}
-    for protein_id in uniqueProteinIDs:
-        if '-' in protein_id:
-            canonical_id=protein_id.split("-")[0]
-            try:
-                gene_name=id_mapping_dict[canonical_id]
-            except KeyError:
-                gene_name='NA'
-        else:
-            try:
-                gene_name=id_mapping_dict[protein_id]
-            except KeyError:
-                gene_name='NA'
-        complexome_protein_to_gene_id_mapping[protein_id]=gene_name
-
-    return complexome_protein_to_gene_id_mapping
+def protein_to_gene_name(complexome: Complexome, protein: str) -> Optional[str]:
+    return complexome.gene_names.get(protein)
 
 
 def wrap_labels(ax, width, topN_GOterms_to_plot, break_long_words=False):
@@ -511,7 +502,7 @@ def wrap_labels(ax, width, topN_GOterms_to_plot, break_long_words=False):
     ax.set_xticklabels(labels, rotation=40, ha="right", va="top")
 
 
-def parse_user_proteomics_data(data: bytes) -> dict[str, tuple[float, float]]:
+def _parse_user_proteomics_data(data: bytes) -> dict[str, tuple[float, float]]:
     isHeader = True  # The proteomics csv data file contains a header line. Set to 'False' otherwise.
     uniprotID_column = 0
     log2FC_column = 1
