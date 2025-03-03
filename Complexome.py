@@ -476,8 +476,8 @@ def plot_volcano(
 
 
 @cache
-def protein_to_gene_name_mapping(proteins: set[str]) -> dict[str, str]:
-    return _fetch_genename_mapping(proteins)
+def protein_to_gene_name_mapping(proteins: tuple[str, ...]) -> dict[str, str]:
+    return _fetch_genename_mapping(set(proteins))
 
 
 def wrap_labels(ax, width, topN_GOterms_to_plot, break_long_words=False):
