@@ -6,6 +6,7 @@ import sys
 import json
 import time
 from dataclasses import dataclass
+from functools import cache
 from urllib.error import URLError
 from urllib.request import urlopen, Request
 from urllib.parse import urlencode
@@ -35,12 +36,12 @@ class SubunitInfo:
 
 @dataclass(frozen=True)
 class Complexome:
+    taxon: str
     file: Path
     complexes: ComplexT
     complex_names: dict[str, str]
     complex_GO_terms: ComplexT
     proteomics_data: dict[str, tuple[float, float]]
-    gene_names: dict[str, str]
 
 
 def _urlretrieve_with_retries(
@@ -130,31 +131,22 @@ def setup(
         organism_taxon_id, str(complexome_file)
     )
 
-    protein_ids, _ = _unique_identities(list(complexes.values()))
-    gene_names = _fetch_genename_mapping(
-        {protein_id.split("-")[0] for protein_id in protein_ids}
-    )
+    # protein_ids, _ = _unique_identities(list(complexes.values()))
+    # gene_names = _fetch_genename_mapping(
+    #     {protein_id.split("-")[0] for protein_id in protein_ids}
+    # )
 
     parsed_proteomics_data = _parse_user_proteomics_data(
         list(proteomics_data.values())[0]
     )
 
-    # TODO: Remove the extra dependency
-    # TODO: Break out the adjustable parameters
     return Complexome(
+        taxon=organism_taxon_id,
         file=complexome_file,
         complexes=complexes,
         complex_names=complex_names,
         complex_GO_terms=complex_GO_terms,
-        gene_names=gene_names,
         proteomics_data=parsed_proteomics_data,
-        # all_perturbed_complexes=identify_perturbed_complexes(
-        #     complexes,
-        #     complex_names,
-        #     parsed_proteomics_data,
-        #     LOG2FC_THRESHOLD,
-        #     ADJP_THRESHOLD,
-        # ),
     )
 
 
@@ -483,8 +475,9 @@ def plot_volcano(
     return axis
 
 
-def protein_to_gene_name(complexome: Complexome, protein: str) -> Optional[str]:
-    return complexome.gene_names.get(protein)
+@cache
+def protein_to_gene_name_mapping(proteins: set[str]) -> dict[str, str]:
+    return _fetch_genename_mapping(proteins)
 
 
 def wrap_labels(ax, width, topN_GOterms_to_plot, break_long_words=False):
