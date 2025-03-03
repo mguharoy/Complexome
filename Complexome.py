@@ -63,6 +63,7 @@ def _urlretrieve_with_retries(
 
 
 def _fetch_genename_mapping(ids: set[str]) -> dict[str, str]:
+    results: dict[str, str] = {}
     params = urlencode(
         {"from": "UniProtKB_AC-ID", "to": "Gene_Name", "ids": ",".join(ids)}
     ).encode("utf-8")
@@ -70,7 +71,7 @@ def _fetch_genename_mapping(ids: set[str]) -> dict[str, str]:
         "https://rest.uniprot.org/idmapping/run", data=params, method="POST"
     )
     request.add_header("Content-Type", "application/x-www-form-urlencoded")
-    _, data = _urlretrieve_with_retries(request)
+    headers, data = _urlretrieve_with_retries(request)
     response = json.loads(data.decode("utf-8"))
     have_results = False
     retries = 0
@@ -83,6 +84,7 @@ def _fetch_genename_mapping(ids: set[str]) -> dict[str, str]:
             response = json.loads(data.decode("utf-8"))
             if "results" in response:
                 get_results_url = headers.get("Link", "").split(";")[0].strip("<>")
+                results = {el.get("from"): el.get("to") for el in response.get("results")}
                 total_results = int(headers.get("X-Total-Results", "0"))
                 have_results = True
             else:
@@ -91,15 +93,18 @@ def _fetch_genename_mapping(ids: set[str]) -> dict[str, str]:
 
     expected = math.ceil(len(ids) / 25) + 10
     counter = 0
-    results: dict[str, str] = {}
-    while have_results and len(results) < total_results and counter < expected:
+
+    while (
+        have_results
+        and get_results_url != ""
+        and len(results) < total_results
+        and counter < expected
+    ):
         headers, data = _urlretrieve_with_retries(
             Request(get_results_url, method="GET")
         )
         response = json.loads(data.decode("utf-8"))
         get_results_url = headers.get("Link", "").split(";")[0].strip("<>")
-        if get_results_url == "":
-            have_results = False
         results.update({el.get("from"): el.get("to") for el in response.get("results")})
         counter += 1
 
