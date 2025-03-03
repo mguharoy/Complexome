@@ -468,7 +468,7 @@ def uniprot_to_genename_mapping(complexome: Complexome) -> dict[str, str]:
     canonicalProteinIDs=[]
     for protein_id in uniqueProteinIDs:
         if '-' in protein_id:
-            canonicalProteinsIDs.append(protein_id.split("-")[0]])
+            canonicalProteinsIDs.append(protein_id.split("-")[0])
         else:
             canonicalProteinsIDs.append(protein_id)
 
