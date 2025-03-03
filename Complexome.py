@@ -563,3 +563,45 @@ def identify_perturbed_complexes(
                 )
                 allPerturbedComplexes.append(subunit_info)
     return allPerturbedComplexes
+
+def GO_analysis_perturbed_complexes(complexome: Complexome):
+    perturbed_complex_ids=[]
+    for subunit_info in complexome.all_perturbed_complexes:
+        perturbed_complex=subunit_info.complex_id
+        if perturbed_complex not in perturbed_complex_ids:
+            perturbed_complex_ids.append(perturbed_complex)
+
+    # Iterate over the perturbed complexes and identify their associated GO terms.
+    affectedComplexesAllGOTerms = {}
+    for complex in perturbed_complex_ids:
+        associatedGOTerms = complexome.complex_GO_terms[complex]
+        # Add the GO terms of this complex to the dictionary tracking the overall GO terms of all affected complexes.
+        for goTerm in associatedGOTerms:
+            if goTerm not in affectedComplexesAllGOTerms:
+                affectedComplexesAllGOTerms[goTerm] = 1
+            else:
+                affectedComplexesAllGOTerms[goTerm] += 1
+    print("Number of unique GO terms associated with the perturbed complexes:",len(affectedComplexesAllGOTerms))
+
+    # Plot the top N GO terms in the affected complexes.
+    # First, sort by descending order of GO term occurrence frequency.
+    sorted_d = dict(sorted(affectedComplexesAllGOTerms.items(), key=operator.itemgetter(1), reverse=True))
+    #print(sorted_d)
+    # Filter out the top N most frequent GO terms (for plotting). Set the value of topN as a user input (default 10).
+    filtered_d = dict(sorted(affectedComplexesAllGOTerms.items(), key=operator.itemgetter(1), reverse=True)[:topN_GOterms_to_plot])
+    #print(filtered_d)
+
+    # Create the bar plot. ****For topN of >10 need to check figure size, etc.
+    sns.set_theme(style='whitegrid', rc={'figure.dpi': 150},font_scale=0.64)
+    sns.set_color_codes('pastel')
+    sns.set(rc={'figure.figsize':(12,6)})
+    fig, ax = plt.subplots()
+    sns.barplot(x=list(filtered_d.keys()), y=[filtered_d[k] for k in filtered_d.keys()], color='blue', saturation=.4)
+    sns.despine(left=True, bottom=False)
+    wrap_labels(ax, 40)
+    plt.xticks(size=12)
+    plt.yticks(size=12)
+    plt.ylabel('# occurrences', fontsize=14)
+    plt.title("Top " + str(topN_GOterms_to_plot) + " most frequent GO Terms associated with the perturbed complexes", fontsize=14)
+    #plt.tight_layout()
+    plt.show()
