@@ -193,11 +193,9 @@ def _parse_complexome_data(
     complexes = {}
     complex_names = {}
     complexes_GO_terms = {}
-    is_header = complexome_data[0] == b"#"
 
-    for row in csv.reader(complexome_data.split("\n"), delimiter="\t"):
-        if is_header:
-            is_header = False
+    for row in csv.reader(complexome_data.splitlines(), delimiter="\t"):
+        if len(row) == 0 or row[0].startswith('#'):  # Skip the header line
             continue
 
         # Each row corresponds to a specific, annotated complex.
