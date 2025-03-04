@@ -84,7 +84,9 @@ def _fetch_genename_mapping(ids: set[str]) -> dict[str, str]:
             response = json.loads(data.decode("utf-8"))
             if "results" in response:
                 get_results_url = headers.get("Link", "").split(";")[0].strip("<>")
-                results = {el.get("from"): el.get("to") for el in response.get("results")}
+                results = {
+                    el.get("from"): el.get("to") for el in response.get("results")
+                }
                 total_results = int(headers.get("X-Total-Results", "0"))
                 have_results = True
             else:
@@ -131,15 +133,12 @@ def setup(
             )
         )
         complexome_file.write_bytes(data)
+    else:
+        data = complexome_file.read_bytes()
 
     complexes, complex_names, complex_GO_terms = _parse_complexome_data(
-        organism_taxon_id, str(complexome_file)
+        organism_taxon_id, data.decode("utf-8")
     )
-
-    # protein_ids, _ = _unique_identities(list(complexes.values()))
-    # gene_names = _fetch_genename_mapping(
-    #     {protein_id.split("-")[0] for protein_id in protein_ids}
-    # )
 
     parsed_proteomics_data = _parse_user_proteomics_data(
         list(proteomics_data.values())[0]
@@ -188,62 +187,61 @@ def _complex_subunit_numbers_distribution(complexes: ComplexT) -> dict[int, int]
 
 
 def _parse_complexome_data(
-    organism_taxon_id: str, complexome_file: str
+    organism_taxon_id: str, complexome_data: str
 ) -> tuple[ComplexT, dict[str, str], ComplexT]:
     "Parse the Complex Portal data file and collect the per complex list of participants."
-    Complexes = {}
-    ComplexNames = {}
-    ComplexesGOTerms = {}
-    with open(complexome_file) as cmplx:
-        isHeader = cmplx.read(1) == "#"
+    complexes = {}
+    complex_names = {}
+    complexes_GO_terms = {}
+    is_header = complexome_data[0] == b"#"
 
-    with open(complexome_file) as fd:
-        rd = csv.reader(fd, delimiter="\t")
-        for row in rd:
-            if isHeader:
-                isHeader = False
-                continue
+    for row in csv.reader(complexome_data.split("\n"), delimiter="\t"):
+        if is_header:
+            is_header = False
+            continue
 
-            # Each row corresponds to a specific, annotated complex.
-            complexID = row[0]
-            complexName = row[1]
-            complexTaxonID = row[3]
-            complexParticipants = row[4]
-            complexExtendedParticipants = row[-1]
-            complexAnnotatedGOTerms = row[7]
+        # Each row corresponds to a specific, annotated complex.
+        complex_id = row[0]
+        complex_name = row[1]
+        complex_taxon_id = row[3]
+        complex_participants = row[4]
+        complex_extended_participants = row[-1]
+        complex_annotated_GO_terms = row[7]
 
-            # Make sure that the organism taxon id is matching.
-            if complexTaxonID != organism_taxon_id:
-                raise RuntimeError(
-                    f"Organism taxon id does not match with the expected organism! {row}"
-                )
+        # Make sure that the organism taxon id is matching.
+        if complex_taxon_id != organism_taxon_id:
+            raise RuntimeError(
+                f"Organism taxon id does not match with the expected organism! {row}"
+            )
 
-            # Extract information about the participants of the complex. Participants can include proteins (UniProtKB), chemical entities (ChEBI), RNA (RNAcentral) and complexes (Complex Portal).
-            complexMembers = _add_complex_participants(complexParticipants)
+        # Extract information about the participants of the complex.
+        # Participants can include proteins (UniProtKB), chemical entities (ChEBI), RNA (RNAcentral) and complexes (Complex Portal).
+        complex_members = _add_complex_participants(complex_participants)
 
-            # Check if one or more participants are themselves complexes. In that case, the expanded list of protein members are contained in the Expanded participant list (last) column.
-            if "CPX-" in complexParticipants:
-                complexMembers = _add_complex_participants(
-                    complexExtendedParticipants, complexMembers
-                )
+        # Check if one or more participants are themselves complexes.
+        # In that case, the expanded list of protein members are contained in the Expanded participant list (last) column.
+        if "CPX-" in complex_participants:
+            complex_members = _add_complex_participants(
+                complex_extended_participants, complex_members
+            )
 
-            # Add information about this complex and its participant molecules into the global dictionary of complexes.
-            if complexID not in Complexes:
-                Complexes[complexID] = complexMembers
-                ComplexNames[complexID] = complexName
-            else:
-                raise RuntimeError(f"Complex ID already exists: {complexID}")
+        # Add information about this complex and its participant molecules into the global dictionary of complexes.
+        if complex_id not in complexes:
+            complexes[complex_id] = complex_members
+            complex_names[complex_id] = complex_name
+        else:
+            raise RuntimeError(f"Complex ID already exists: {complex_id}")
 
-            # Extract information about the annotated GO terms of the complex.
-            complexGOTerms = complexAnnotatedGOTerms.split("|")
+        # Extract information about the annotated GO terms of the complex.
+        complex_GO_terms = complex_annotated_GO_terms.split("|")
 
-            # Add information about this complex and its associated GO terms into the global dictionary of GO terms.
-            if complexID not in ComplexesGOTerms:
-                ComplexesGOTerms[complexID] = complexGOTerms
-            else:
-                raise RuntimeError(f"Complex ID already exists: {complexID}")
+        # Add information about this complex and its associated GO terms into the global dictionary of GO terms.
+        if complex_id not in complexes_GO_terms:
+            complexes_GO_terms[complex_id] = complex_GO_terms
+        else:
+            raise RuntimeError(f"Complex ID already exists: {complex_id}")
 
-    return (Complexes, ComplexNames, ComplexesGOTerms)
+    return (complexes, complex_names, complexes_GO_terms)
 
 
 def summary_statistics(complexome: Complexome) -> None:
@@ -564,10 +562,11 @@ def identify_perturbed_complexes(
                 allPerturbedComplexes.append(subunit_info)
     return allPerturbedComplexes
 
+
 def GO_analysis_perturbed_complexes(complexome: Complexome):
-    perturbed_complex_ids=[]
+    perturbed_complex_ids = []
     for subunit_info in complexome.all_perturbed_complexes:
-        perturbed_complex=subunit_info.complex_id
+        perturbed_complex = subunit_info.complex_id
         if perturbed_complex not in perturbed_complex_ids:
             perturbed_complex_ids.append(perturbed_complex)
 
@@ -581,27 +580,52 @@ def GO_analysis_perturbed_complexes(complexome: Complexome):
                 affectedComplexesAllGOTerms[goTerm] = 1
             else:
                 affectedComplexesAllGOTerms[goTerm] += 1
-    print("Number of unique GO terms associated with the perturbed complexes:",len(affectedComplexesAllGOTerms))
+    print(
+        "Number of unique GO terms associated with the perturbed complexes:",
+        len(affectedComplexesAllGOTerms),
+    )
 
     # Plot the top N GO terms in the affected complexes.
     # First, sort by descending order of GO term occurrence frequency.
-    sorted_d = dict(sorted(affectedComplexesAllGOTerms.items(), key=operator.itemgetter(1), reverse=True))
-    #print(sorted_d)
+    sorted_d = dict(
+        sorted(
+            affectedComplexesAllGOTerms.items(),
+            key=operator.itemgetter(1),
+            reverse=True,
+        )
+    )
+    # print(sorted_d)
     # Filter out the top N most frequent GO terms (for plotting). Set the value of topN as a user input (default 10).
-    filtered_d = dict(sorted(affectedComplexesAllGOTerms.items(), key=operator.itemgetter(1), reverse=True)[:topN_GOterms_to_plot])
-    #print(filtered_d)
+    filtered_d = dict(
+        sorted(
+            affectedComplexesAllGOTerms.items(),
+            key=operator.itemgetter(1),
+            reverse=True,
+        )[:topN_GOterms_to_plot]
+    )
+    # print(filtered_d)
 
     # Create the bar plot. ****For topN of >10 need to check figure size, etc.
-    sns.set_theme(style='whitegrid', rc={'figure.dpi': 150},font_scale=0.64)
-    sns.set_color_codes('pastel')
-    sns.set(rc={'figure.figsize':(12,6)})
+    sns.set_theme(style="whitegrid", rc={"figure.dpi": 150}, font_scale=0.64)
+    sns.set_color_codes("pastel")
+    sns.set(rc={"figure.figsize": (12, 6)})
     fig, ax = plt.subplots()
-    sns.barplot(x=list(filtered_d.keys()), y=[filtered_d[k] for k in filtered_d.keys()], color='blue', saturation=.4)
+    sns.barplot(
+        x=list(filtered_d.keys()),
+        y=[filtered_d[k] for k in filtered_d.keys()],
+        color="blue",
+        saturation=0.4,
+    )
     sns.despine(left=True, bottom=False)
     wrap_labels(ax, 40)
     plt.xticks(size=12)
     plt.yticks(size=12)
-    plt.ylabel('# occurrences', fontsize=14)
-    plt.title("Top " + str(topN_GOterms_to_plot) + " most frequent GO Terms associated with the perturbed complexes", fontsize=14)
-    #plt.tight_layout()
+    plt.ylabel("# occurrences", fontsize=14)
+    plt.title(
+        "Top "
+        + str(topN_GOterms_to_plot)
+        + " most frequent GO Terms associated with the perturbed complexes",
+        fontsize=14,
+    )
+    # plt.tight_layout()
     plt.show()
