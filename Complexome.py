@@ -7,6 +7,7 @@ import json
 import time
 from dataclasses import dataclass
 from functools import cache
+from collections import Counter
 from urllib.error import URLError
 from urllib.request import urlopen, Request
 from urllib.parse import urlencode
@@ -195,7 +196,7 @@ def _parse_complexome_data(
     complexes_GO_terms = {}
 
     for row in csv.reader(complexome_data.splitlines(), delimiter="\t"):
-        if len(row) == 0 or row[0].startswith('#'):  # Skip the header line
+        if len(row) == 0 or row[0].startswith("#"):  # Skip the header line
             continue
 
         # Each row corresponds to a specific, annotated complex.
@@ -481,7 +482,7 @@ def protein_to_gene_name_mapping(proteins: tuple[str, ...]) -> dict[str, str]:
     return _fetch_genename_mapping(set(proteins))
 
 
-def wrap_labels(ax, width, topN_GOterms_to_plot, break_long_words=False):
+def wrap_labels(ax, width, topN_GOterms_to_plot, break_long_words=False, fontsize=10):
     """
     Word wrap long GO term names (used as axis labels).
     Based on https://medium.com/dunder-data/automatically-wrap-graph-labels-in-matplotlib-and-seaborn-a48740bc9ce
@@ -493,7 +494,7 @@ def wrap_labels(ax, width, topN_GOterms_to_plot, break_long_words=False):
             textwrap.fill(text, width=width, break_long_words=break_long_words)
         )
     ax.set_xticks(range(topN_GOterms_to_plot))  # new addition -- checking.
-    ax.set_xticklabels(labels, rotation=40, ha="right", va="top")
+    ax.set_xticklabels(labels, rotation=40, ha="right", va="top", fontsize=fontsize)
 
 
 def _parse_user_proteomics_data(data: bytes) -> dict[str, tuple[float, float]]:
@@ -553,7 +554,6 @@ def identify_perturbed_complexes(
                     complex_id=complexId,
                     name=complexName,
                     subunit=subunit,
-                    # measure=list(proteomicsData.values()),
                     log2fc=log2fc,
                     apvalue=apval,
                 )
@@ -561,69 +561,36 @@ def identify_perturbed_complexes(
     return allPerturbedComplexes
 
 
-def GO_analysis_perturbed_complexes(complexome: Complexome):
-    perturbed_complex_ids = []
-    for subunit_info in complexome.all_perturbed_complexes:
-        perturbed_complex = subunit_info.complex_id
-        if perturbed_complex not in perturbed_complex_ids:
-            perturbed_complex_ids.append(perturbed_complex)
+def GO_analysis_perturbed_complexes(
+    complexome: Complexome,
+    all_perturbed_complexes: list[SubunitInfo],
+    top_n: int,
+    axis: Optional[Axes] = None,
+):
+    if axis is None:
+        axis = plt.subplot()
+    perturbed_complex_ids = {subunit.complex_id for subunit in all_perturbed_complexes}
 
     # Iterate over the perturbed complexes and identify their associated GO terms.
-    affectedComplexesAllGOTerms = {}
-    for complex in perturbed_complex_ids:
-        associatedGOTerms = complexome.complex_GO_terms[complex]
-        # Add the GO terms of this complex to the dictionary tracking the overall GO terms of all affected complexes.
-        for goTerm in associatedGOTerms:
-            if goTerm not in affectedComplexesAllGOTerms:
-                affectedComplexesAllGOTerms[goTerm] = 1
-            else:
-                affectedComplexesAllGOTerms[goTerm] += 1
-    print(
-        "Number of unique GO terms associated with the perturbed complexes:",
-        len(affectedComplexesAllGOTerms),
-    )
-
-    # Plot the top N GO terms in the affected complexes.
-    # First, sort by descending order of GO term occurrence frequency.
-    sorted_d = dict(
-        sorted(
-            affectedComplexesAllGOTerms.items(),
-            key=operator.itemgetter(1),
-            reverse=True,
+    affected_complexes_all_GO_terms = Counter(
+        (
+            go_term
+            for complex_id in perturbed_complex_ids
+            for go_term in complexome.complex_GO_terms[complex_id]
         )
     )
-    # print(sorted_d)
-    # Filter out the top N most frequent GO terms (for plotting). Set the value of topN as a user input (default 10).
-    filtered_d = dict(
-        sorted(
-            affectedComplexesAllGOTerms.items(),
-            key=operator.itemgetter(1),
-            reverse=True,
-        )[:topN_GOterms_to_plot]
-    )
-    # print(filtered_d)
+    top = dict(affected_complexes_all_GO_terms.most_common(top_n))
 
-    # Create the bar plot. ****For topN of >10 need to check figure size, etc.
-    sns.set_theme(style="whitegrid", rc={"figure.dpi": 150}, font_scale=0.64)
-    sns.set_color_codes("pastel")
-    sns.set(rc={"figure.figsize": (12, 6)})
-    fig, ax = plt.subplots()
-    sns.barplot(
-        x=list(filtered_d.keys()),
-        y=[filtered_d[k] for k in filtered_d.keys()],
-        color="blue",
-        saturation=0.4,
+    axis.bar(
+        list(top.keys()),
+        list(top.values()),
+        color="g",
     )
-    sns.despine(left=True, bottom=False)
-    wrap_labels(ax, 40)
-    plt.xticks(size=12)
-    plt.yticks(size=12)
-    plt.ylabel("# occurrences", fontsize=14)
-    plt.title(
-        "Top "
-        + str(topN_GOterms_to_plot)
-        + " most frequent GO Terms associated with the perturbed complexes",
-        fontsize=14,
+    wrap_labels(axis, 30, top_n, fontsize=6)
+    axis.set_ylabel("# occurrences", fontsize=10)
+    axis.set_title(
+        f"Top {top_n} most frequent GO terms associated with the perturbed complexes",
+        fontsize=10,
     )
-    # plt.tight_layout()
-    plt.show()
+
+    return axis
