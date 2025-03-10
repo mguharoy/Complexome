@@ -397,7 +397,11 @@ def proteomics_coverage_of_complexome(
                 continue
             else:
                 numSubunits += 1
-                canonicalUniProtID = subunit[:6]
+                if '-' in subunit or '_' in subunit:
+                    canonicalUniProtID = subunit[:6]
+                else:
+                    canonicalUniProtID = subunit
+
                 if canonicalUniProtID in complexome.proteomics_data:
                     measuredSubunits += 1
         proteomicsCoveragePerComplex[complex_id] = measuredSubunits / numSubunits
@@ -449,6 +453,7 @@ def proteomics_coverage_of_complexome(
     axis.tick_params(axis='both', which='major', labelsize=14)
     return axis
 
+
 def plot_venn_diagram(complexome: Complexome, axis: Optional[Axes] = None) -> Axes:
     # Visualize the overlap between the complexome proteins and the dataset of proteins measured in the proteomics experiment.
     if axis is None:
@@ -471,7 +476,7 @@ def plot_venn_diagram(complexome: Complexome, axis: Optional[Axes] = None) -> Ax
                 if canonicalUniProtID not in all_canonical_subunits_complexome:
                     all_canonical_subunits_complexome.append(canonicalUniProtID)
 
-                all_measured_protein_subunits = list(complexome.proteomics_data.keys())
+    all_measured_protein_subunits = list(complexome.proteomics_data.keys())
     venn2([set(all_canonical_subunits_complexome), set(all_measured_protein_subunits)], set_labels=('Complexome proteins','Proteomics dataset'))
 
     return axis
