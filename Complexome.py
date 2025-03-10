@@ -17,6 +17,7 @@ import textwrap
 
 from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
+from matplotlib_venn import venn2
 
 MAX_RETRIES = 20
 ONLY_REGULATED_SUBUNITS = True
@@ -446,6 +447,33 @@ def proteomics_coverage_of_complexome(
     axis.set_xlabel("Proteomics Coverage", fontsize=16)
     axis.set_ylabel("Count", fontsize=16)
     axis.tick_params(axis='both', which='major', labelsize=14)
+    return axis
+
+def plot_venn_diagram(complexome: Complexome, axis: Optional[Axes] = None) -> Axes:
+    # Visualize the overlap between the complexome proteins and the dataset of proteins measured in the proteomics experiment.
+    if axis is None:
+        axis = plt.subplot()
+    all_canonical_subunits_complexome: list = []
+    for complex_id, complex in complexome.complexes.items():
+        for subunit in complex:
+            if "CPX-" in subunit:
+                continue
+            elif "URS" in subunit:
+                continue
+            elif "CHEBI:" in subunit:
+                continue
+            else:
+                if '-' in subunit or '_' in subunit:
+                	canonicalUniProtID = subunit[:6]
+                else:
+                	canonicalUniProtID = subunit
+
+                if canonicalUniProtID not in all_canonical_subunits_complexome:
+                    all_canonical_subunits_complexome.append(canonicalUniProtID)
+
+                all_measured_protein_subunits = list(complexome.proteomics_data.keys())
+    venn2([set(all_canonical_subunits_complexome), set(all_measured_protein_subunits)], set_labels=('Complexome proteins','Proteomics dataset'))
+
     return axis
 
 
