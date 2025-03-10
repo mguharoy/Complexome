@@ -314,6 +314,7 @@ def proteins_only(complexome: Complexome, axis: Optional[Axes] = None) -> Axes:
     axis.bar(list(x), list(height), color="g")
     axis.set_xlabel("Number of protein subunits", fontsize=16)
     axis.set_ylabel("Number of complexes", fontsize=16)
+    axis.tick_params(axis='both', which='major', labelsize=14)
     axis.set_title("Subunit distribution (proteins only)", fontsize=18)
     return axis
 
@@ -368,6 +369,7 @@ def shared_protein_subunits(
     )
     axis.set_xlabel("Number of complexes", fontsize=16)
     axis.set_ylabel("Number of proteins", fontsize=16)
+    axis.tick_params(axis='both', which='major', labelsize=14)
     axis.set_xticks(
         range(1, 11), ["1", "2", "3", "4", "5", "6", "7", "8", "9", ">10"], size=14
     )
