@@ -443,8 +443,9 @@ def proteomics_coverage_of_complexome(
     )
     axis.bar(x=xs, height=histogram, width=delta, align="edge", color="g")
     axis.set_xbound(lower=0.0, upper=1.0)
-    axis.set_xlabel("Proteomics Coverage")
-    axis.set_ylabel("Count")
+    axis.set_xlabel("Proteomics Coverage", fontsize=16)
+    axis.set_ylabel("Count", fontsize=16)
+    axis.tick_params(axis='both', which='major', labelsize=14)
     return axis
 
 
