@@ -245,11 +245,14 @@ def _parse_complexome_data(
 
 def summary_statistics(complexome: Complexome) -> None:
     print("Total number of annotated complexes:", len(complexome.complexes))
-    print("Total number of complex names:", len(complexome.complex_names))
-    print(
+    #print("Total number of complex names:", len(complexome.complex_names))
+    #print(
         "Total number of complexes with associated GO terms:",
         len(complexome.complex_GO_terms),
     )
+    if len(complexome.complexes)!=len(complexome.complex_names) or len(complexome.complexes)!=len(complexome.complex_GO_terms):
+        print("Error: Inconsistency in parsing complex IDs, complex names and complex GO terms.")
+        sys.exit() # is there a better alternative? we need to check that these numbers match.
 
 
 def _unique_identities(complexes: list[list[str]]) -> tuple[list[str], list[str]]:
