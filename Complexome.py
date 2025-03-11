@@ -17,7 +17,7 @@ import textwrap
 
 from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
-from matplotlib_venn import venn2
+from matplotlib_venn import venn2  # type: ignore[import-untyped]
 
 MAX_RETRIES = 20
 ONLY_REGULATED_SUBUNITS = True
@@ -146,6 +146,11 @@ def setup(
         list(proteomics_data.values())[0]
     )
 
+    if len(complexes) != len(complex_names) or len(complexes) != len(complex_GO_terms):
+        raise ValueError(
+            "Error: Inconsistency in parsing complex IDs, complex names and complex GO terms."
+        )
+
     return Complexome(
         taxon=organism_taxon_id,
         file=complexome_file,
@@ -245,16 +250,10 @@ def _parse_complexome_data(
 
 
 def summary_statistics(complexome: Complexome) -> None:
-    print("Total number of annotated complexes in the downloaded dataset:", len(complexome.complexes))
-    #print("Total number of complex names:", len(complexome.complex_names))
-    #print(
-    #    "Total number of complexes with associated GO terms:",
-    #    len(complexome.complex_GO_terms),
-    #)
-    if len(complexome.complexes)!=len(complexome.complex_names) or len(complexome.complexes)!=len(complexome.complex_GO_terms):
-        print("Error: Inconsistency in parsing complex IDs, complex names and complex GO terms.")
-        sys.exit() # is there a better alternative? we need to check that these numbers match.
-
+    print(
+        "Total number of annotated complexes in the downloaded dataset:",
+        len(complexome.complexes),
+    )
 
 def _unique_identities(complexes: list[list[str]]) -> tuple[list[str], list[str]]:
     "Find the unique proteins, metabolites and RNA molecules contained in that complexome."
@@ -315,7 +314,7 @@ def proteins_only(complexome: Complexome, axis: Optional[Axes] = None) -> Axes:
     axis.bar(list(x), list(height), color="g")
     axis.set_xlabel("Number of protein subunits", fontsize=16)
     axis.set_ylabel("Number of complexes", fontsize=16)
-    axis.tick_params(axis='both', which='major', labelsize=14)
+    axis.tick_params(axis="both", which="major", labelsize=14)
     axis.set_title("Subunit distribution (proteins only)", fontsize=18)
     return axis
 
@@ -370,7 +369,7 @@ def shared_protein_subunits(
     )
     axis.set_xlabel("Number of complexes", fontsize=16)
     axis.set_ylabel("Number of proteins", fontsize=16)
-    axis.tick_params(axis='both', which='major', labelsize=14)
+    axis.tick_params(axis="both", which="major", labelsize=14)
     axis.set_xticks(
         range(1, 11), ["1", "2", "3", "4", "5", "6", "7", "8", "9", ">10"], size=14
     )
@@ -397,7 +396,7 @@ def proteomics_coverage_of_complexome(
                 continue
             else:
                 numSubunits += 1
-                if '-' in subunit or '_' in subunit:
+                if "-" in subunit or "_" in subunit:
                     canonicalUniProtID = subunit[:6]
                 else:
                     canonicalUniProtID = subunit
@@ -450,15 +449,15 @@ def proteomics_coverage_of_complexome(
     axis.set_xbound(lower=0.0, upper=1.0)
     axis.set_xlabel("Proteomics Coverage", fontsize=16)
     axis.set_ylabel("Count", fontsize=16)
-    axis.tick_params(axis='both', which='major', labelsize=14)
+    axis.tick_params(axis="both", which="major", labelsize=14)
     return axis
 
 
 def plot_venn_diagram(complexome: Complexome, axis: Optional[Axes] = None) -> Axes:
-    # Visualize the overlap between the complexome proteins and the dataset of proteins measured in the proteomics experiment.
+    "Visualize the overlap between the complexome proteins and the dataset of proteins measured in the proteomics experiment."
     if axis is None:
         axis = plt.subplot()
-    all_canonical_subunits_complexome: list = []
+    all_canonical_subunits_complexome: set[str] = set()
     for complex_id, complex in complexome.complexes.items():
         for subunit in complex:
             if "CPX-" in subunit:
@@ -468,16 +467,17 @@ def plot_venn_diagram(complexome: Complexome, axis: Optional[Axes] = None) -> Ax
             elif "CHEBI:" in subunit:
                 continue
             else:
-                if '-' in subunit or '_' in subunit:
-                	canonicalUniProtID = subunit[:6]
+                if "-" in subunit or "_" in subunit:
+                    all_canonical_subunits_complexome.add(subunit[:6])
                 else:
-                	canonicalUniProtID = subunit
+                    all_canonical_subunits_complexome.add(subunit)
 
-                if canonicalUniProtID not in all_canonical_subunits_complexome:
-                    all_canonical_subunits_complexome.append(canonicalUniProtID)
-
-    all_measured_protein_subunits = list(complexome.proteomics_data.keys())
-    venn2([set(all_canonical_subunits_complexome), set(all_measured_protein_subunits)], set_labels=('Complexome proteins','Proteomics dataset'))
+    all_measured_protein_subunits = set(complexome.proteomics_data.keys())
+    venn2(
+        [all_canonical_subunits_complexome, all_measured_protein_subunits],
+        set_labels=("Complexome proteins", "Proteomics dataset"),
+        ax=axis
+    )
 
     return axis
 
