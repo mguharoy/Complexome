@@ -633,3 +633,53 @@ def GO_analysis_perturbed_complexes(
     )
 
     return axis
+
+
+def perturbation_score_calculator(
+    complexome: Complexome,
+    all_perturbed_complexes: list[SubunitInfo],
+) -> dict[str, list[str, float, float]]:
+
+    perturbation_scores = {}
+    perturbed_complex_ids = {subunit.complex_id for subunit in all_perturbed_complexes}
+    for complex_id, complex in complexome.complexes.items():
+        if complex_id not in perturbed_complex_ids:
+            continue
+
+        log2_fc_values = []
+        adjp_values = []
+        for subunit in complex:
+            if "CPX-" in subunit:
+                continue
+            elif "URS" in subunit:
+                continue
+            elif "CHEBI:" in subunit:
+                continue
+            else:
+                if "-" in subunit or "_" in subunit:
+                    subunit_protein_id = subunit[:6] # Maybe a bit of an assumption, but ok for now.
+                else:
+                    subunit_protein_id = subunit
+
+            if subunit_protein_id in complexome.proteomics_data:
+                log2_fc_values.append(complexome.proteomics_data[subunit_protein_id][0])
+                adjp_values.append(complexome.proteomics_data[subunit_protein_id][1])
+
+        allDownRegulated = all(n < 0 for n in log2_fc_values)
+        allUpRegulated = all(n > 0 for n in log2_fc_values)
+        alteredComplex = False
+        if not allDownRegulated and not allUpRegulated:
+            alteredComplex = True
+
+        if allDownRegulated:
+            perturbationType='Down-regulated'
+        elif allUpRegulated:
+            perturbationType='Up-regulated'
+        elif alteredComplex:
+            perturbationType='Altered'
+
+        regulation_score=sum([abs(a * -math.log10(b)) for a, b in zip(log2_fc_values, adjp_values)])
+        regulation_score_normalized = regulation_score/float(len(log2_fc_values))
+
+        perturbation_scores[complex_id] = [perturbationType, float(regulation_score), float(regulation_score_normalized)]
+    return perturbation_scores
