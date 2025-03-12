@@ -378,11 +378,7 @@ def shared_protein_subunits(
     return axis
 
 
-def proteomics_coverage_of_complexome(
-    complexome: Complexome, axis: Optional[Axes] = None
-) -> Axes:
-    if axis is None:
-        axis = plt.subplot()
+def proteomics_coverage_of_complexome(complexome: Complexome) -> dict[str, float]:
     proteomicsCoveragePerComplex: dict[str, float] = {}
     for complex_id, complex in complexome.complexes.items():
         numSubunits = 0
@@ -404,6 +400,14 @@ def proteomics_coverage_of_complexome(
                 if canonicalUniProtID in complexome.proteomics_data:
                     measuredSubunits += 1
         proteomicsCoveragePerComplex[complex_id] = measuredSubunits / numSubunits
+    return proteomicsCoveragePerComplex
+
+def plot_proteomics_coverage_of_complexome(
+    complexome: Complexome, axis: Optional[Axes] = None
+) -> Axes:
+    if axis is None:
+        axis = plt.subplot()
+    proteomicsCoveragePerComplex: dict[str, float] = proteomics_coverage_of_complexome(complexome)
 
     _min = min(proteomicsCoveragePerComplex.values())
     _max = max(proteomicsCoveragePerComplex.values())
