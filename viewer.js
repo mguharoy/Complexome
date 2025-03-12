@@ -1,5 +1,5 @@
 import { App } from "https://cdn.skypack.dev/pin/complexviewer@v2.2.4-mcKlBbXJL2XODAKhG35J/mode=imports,min/optimized/complexviewer.js";
-import { interpolateRgb } from "https://cdn.skypack.dev/d3-interpolate@3";
+import { interpolateRgbBasis } from "https://cdn.skypack.dev/d3-interpolate@3";
 
 function mkScale(protein_log2fc) {
   // Get the range of log2fc values.
@@ -13,8 +13,8 @@ function mkScale(protein_log2fc) {
 
   const scale =
     max_log2fc === min_log2fc ? 1.0 : 1.0 / (max_log2fc - min_log2fc);
-  const interp = interpolateRgb("purple", "orange");
-
+  const interp = interpolateRgbBasis(["blue", "white", "red"]);
+ 
   return [
     min_log2fc,
     max_log2fc,
@@ -87,16 +87,15 @@ export function drawScale(protein_log2fc) {
   inner.style.display = "flex";
   subContainer.appendChild(inner);
 
-  protein_log2fc
-    .map((val) => val.log2fc)
-    .toSorted((a, b) => a - b)
-    .forEach((val) => {
-      const bar = document.createElement("div");
-      bar.style.height = "100%";
-      bar.style.flex = "1 1 0%";
-      bar.style.backgroundColor = colour(val);
-      inner.appendChild(bar);
-    });
+	const numSamples = 50;
+	for(let val = min; val <= max; val += ((max - min) / numSamples)) {
+		const bar = document.createElement("div");
+    bar.style.height = "100%";
+    bar.style.flex = "1 1 0%";
+    bar.style.backgroundColor = colour(val);
+    inner.appendChild(bar);
+		console.log(val);
+	}
 
   const labels = document.createElement("div");
   labels.style.display = "flex";
