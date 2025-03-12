@@ -5,6 +5,7 @@ import math
 import sys
 import json
 import time
+import operator
 from dataclasses import dataclass
 from functools import cache
 from collections import Counter
@@ -701,6 +702,6 @@ def perturbation_score_calculator(
 def format_output_table_data(complexome: Complexome, perturbed_complex_subunits: list[SubunitInfo], key: str) -> list[list[str]]:
     genes = protein_to_gene_name_mapping(tuple({info.subunit for info in perturbed_complex_subunits}))
     coverage = proteomics_coverage_of_complexome(complexome)
-    data = sorted([OutputTableRow(complex_id = info.complex_id, complex_name = info.name, coverage = coverage.get(info.complex_id), subunit = info.subunit, genename = genes.get(info.subunit), log2fc = info.log2fc, apvalue = info.apvalue) for info in perturbed_complex_subunits], key=operator.attrgetter(key))
+    data = sorted([OutputTableRow(complex_id = info.complex_id, complex_name = info.name, coverage = coverage.get(info.complex_id), subunit = info.subunit, genename = genes.get(info.subunit), log2fc = info.log2fc, apvalue = info.apvalue) for info in perturbed_complex_subunits], key=operator.attrgetter(key), reverse=True)
     return [["Complex ID", "Complex Name", "Coverage", "Subunit Id", "Gene Name", "Log2FC","Adj P-value"]] + [[info.complex_id, info.complex_name, f"{info.coverage:.2f}", info.subunit, info.genename, f"{info.log2fc:.2f}", f"{info.apvalue:.3f}"] for info in data]
 
