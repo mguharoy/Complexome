@@ -14,7 +14,7 @@ function mkScale(protein_log2fc) {
   const scale =
     max_log2fc === min_log2fc ? 1.0 : 1.0 / (max_log2fc - min_log2fc);
   const interp = interpolateRgbBasis(["blue", "white", "red"]);
- 
+
   return [
     min_log2fc,
     max_log2fc,
@@ -48,23 +48,25 @@ export async function draw(el, complex_id, protein_log2fc, width, height) {
   const data = await res.json();
   complexviewer.readMIJSON(data);
 
-  const allText = Array.from(el.querySelectorAll("svg text"));
+  const allText = Array.from(el.querySelectorAll("svg text.label"));
   const [, , colour] = mkScale(protein_log2fc);
   data.data.forEach((entry) => {
     if (entry.identifier) {
-      const parent = allText.find(
-        (el) => el.textContent === entry.label,
-      )?.parentNode;
-      const log2fc = protein_log2fc.find(
-        (protein) => protein.protein === entry.identifier.id,
-      )?.log2fc;
-      const children = Array.from(parent.childNodes);
-      // remove the groups
-      children
-        .filter((el) => el.tagName.toLowerCase() === "g")
-        .forEach((el) => parent.removeChild(el));
-      // colour
-      children[1].setAttribute("fill", colour(log2fc));
+      allText
+        .filter((el) => el.textContent === entry.label)
+        .forEach((el) => {
+          const parent = el.parentNode;
+          const log2fc = protein_log2fc.find(
+            (protein) => protein.protein === entry.identifier.id,
+          )?.log2fc;
+          const children = Array.from(parent.childNodes);
+          // remove the groups
+          children
+            .filter((el) => el.tagName.toLowerCase() === "g")
+            .forEach((el) => parent.removeChild(el));
+          // colour
+          children[1].setAttribute("fill", colour(log2fc));
+        });
     }
   });
 }
@@ -87,15 +89,14 @@ export function drawScale(protein_log2fc) {
   inner.style.display = "flex";
   subContainer.appendChild(inner);
 
-	const numSamples = 50;
-	for(let val = min; val <= max; val += ((max - min) / numSamples)) {
-		const bar = document.createElement("div");
+  const numSamples = 50;
+  for (let val = min; val <= max; val += (max - min) / numSamples) {
+    const bar = document.createElement("div");
     bar.style.height = "100%";
     bar.style.flex = "1 1 0%";
     bar.style.backgroundColor = colour(val);
     inner.appendChild(bar);
-		console.log(val);
-	}
+  }
 
   const labels = document.createElement("div");
   labels.style.display = "flex";
