@@ -91,6 +91,9 @@ class OutputTableRow:
     complex_id: str
     complex_name: str
     coverage: float
+    perturbationType: str
+    perturbationScore: float
+    perturbationScoreNormalized: float
     subunit: str
     genename: str
     log2fc: float
@@ -803,12 +806,16 @@ def format_output_table_data(
         tuple({info.subunit for info in perturbed_complex_subunits})
     )
     coverage = proteomics_coverage_of_complexome(complexome)
+    perturbation = perturbation_scores(complexome, perturbed_complex_subunits)
     data = sorted(
         [
             OutputTableRow(
                 complex_id=info.complex_id,
                 complex_name=info.name,
                 coverage=coverage.get(info.complex_id) or 0.0,
+                perturbationType=perturbation.get(info.complex_id).perturbation,
+                perturbationScore=perturbation.get(info.complex_id).score,
+                perturbationScoreNormalized=perturbation.get(info.complex_id).score_normalized,
                 subunit=info.subunit,
                 genename=genes.get(info.subunit) or "",
                 log2fc=info.log2fc,
@@ -824,6 +831,9 @@ def format_output_table_data(
             "Complex ID",
             "Complex Name",
             "Coverage",
+            "Perturbation Type",
+            "Perturbation Score",
+            "Normalized Score",
             "Subunit Id",
             "Gene Name",
             "Log2FC",
@@ -834,6 +844,9 @@ def format_output_table_data(
             info.complex_id,
             info.complex_name,
             f"{info.coverage:.2f}",
+            info.perturbationType,
+            f"{info.perturbationScore:.2f}",
+            f"{info.perturbationScoreNormalized:.2f}",
             info.subunit,
             info.genename,
             f"{info.log2fc:.2f}",
