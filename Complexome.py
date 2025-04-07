@@ -638,7 +638,10 @@ def wrap_labels(
         labels.append(
             textwrap.fill(text, width=width, break_long_words=break_long_words),
         )
-    ax.set_xticks(range(top_n))  # new addition -- checking.
+    if len(labels) < top_n:
+        ax.set_xticks(range(len(labels)))
+    else:
+        ax.set_xticks(range(top_n))  # new addition -- checking. was needed for cases where the #GO terms to be plotted were less than the specified top_n.
     ax.set_xticklabels(labels, rotation=40, ha="right", va="top", fontsize=fontsize)
 
 
@@ -730,11 +733,11 @@ def plot_gene_ontology_analysis_perturbed_complexes(
         list(top.values()),
         color="g",
     )
-    wrap_labels(axis, 30, top_n, fontsize=6)
-    axis.set_ylabel("# occurrences", fontsize=10)
+    wrap_labels(axis, 30, top_n, fontsize=8)
+    axis.set_ylabel("# occurrences", fontsize=12)
     axis.set_title(
-        f"Top {top_n} most frequent GO terms associated with the perturbed complexes",
-        fontsize=10,
+        "Most frequent GO terms associated with the perturbed complexes",
+        fontsize=14,
     )
 
     return axis
