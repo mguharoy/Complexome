@@ -647,7 +647,6 @@ def wrap_labels(
 
 def _parse_user_proteomics_data(data: bytes) -> dict[str, tuple[float, float]]:
     is_header = True  # The proteomics csv data file contains a header line.
-    toIgnore = ['NA', 'NaN', float('NaN')]
 
     proteomics_data = {}
     reader = csv.reader(io.StringIO(data.decode("utf8")), delimiter=",")
@@ -658,9 +657,15 @@ def _parse_user_proteomics_data(data: bytes) -> dict[str, tuple[float, float]]:
         uniprot_id = row[UNIPROT_ID_COLUMN]
         log2fc = row[LOG2FC_COLUMN]
         adj_pval = row[ADJPVAL_COLUMN]
-        if log2fc in toIgnore or adj_pval in toIgnore:
+        try:
+            log2fc_value = float(log2fc)
+            adj_pval_value = float(adj_pval)
+        except ValueError:
             continue
-        proteomics_data[uniprot_id] = (float(log2fc), float(adj_pval))
+        protein_values = (log2fc_value, adj_pval_value)
+        if float('NaN') in protein_values:
+            continue
+        proteomics_data[uniprot_id] = protein_values
 
     return proteomics_data
 
