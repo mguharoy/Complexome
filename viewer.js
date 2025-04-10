@@ -48,16 +48,26 @@ export async function draw(el, complex_id, protein_log2fc, width, height) {
   const data = await res.json();
   complexviewer.readMIJSON(data);
 
+	//when we have a "setComponents", map label to protein IDs
+	const names = new Map(); // Map<string, string[]>;
+	data.data.forEach((entry) => {
+		if (entry.setComponents && entry.label) {
+			names.set(entry.label, entry.setComponents.map((component) => component.identifier.id));
+		} else if (entry.identifier) {
+			return names.set(entry.label, [entry.identifier.id]);
+		}
+	});
+
   const allText = Array.from(el.querySelectorAll("svg text.label"));
   const [, , colour] = mkScale(protein_log2fc);
   data.data.forEach((entry) => {
-    if (entry.identifier) {
+    if (entry.identifier || entry.setComponents) {
       allText
         .filter((el) => el.textContent === entry.label)
         .forEach((el) => {
           const parent = el.parentNode;
           const log2fc = protein_log2fc.find(
-            (protein) => protein.protein === entry.identifier.id,
+            (protein) => names.get(entry.label).includes(protein.protein)
           )?.log2fc;
           const children = Array.from(parent.childNodes);
           // remove the groups
