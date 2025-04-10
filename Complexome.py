@@ -614,6 +614,9 @@ def plot_volcano(
     colours = [colour(*datum) for datum in transformed_data]
     (xvals, yvals) = zip(*transformed_data, strict=False)
     axis.scatter(xvals, yvals, s=marker_size, c=colours)
+    axis.axhline(y=-1.0*math.log10(adjp_threshold), color='darkgrey', linestyle='--')
+    axis.axvline(x=log2fc_threshold, color='darkgrey', linestyle='--')
+    axis.axvline(x=-1.0*log2fc_threshold, color='darkgrey', linestyle='--')
     axis.set_title("Volcano plot")
     axis.set_xlabel("log2 (FC)")
     axis.set_ylabel("-log10 (adjPval)")
