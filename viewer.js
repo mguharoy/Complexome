@@ -63,7 +63,7 @@ export async function draw(el, complex_id, protein_log2fc, width, height) {
   data.data.forEach((entry) => {
     if (entry.identifier || entry.setComponents) {
       allText
-        .filter((el) => el.textContent === entry.label)
+        .filter((el) => el.textContent.startsWith(entry.label))
         .forEach((el) => {
           const parent = el.parentNode;
           const log2fc = protein_log2fc.find(
