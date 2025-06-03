@@ -87,6 +87,7 @@ export async function draw(el, complex_id, protein_log2fc, width, height) {
  */
 export function drawScale(protein_log2fc) {
   const [min, max, colour] = mkScale(protein_log2fc);
+	const middle = (min + max) / 2;
 
   const container = document.createElement("div");
   container.style.width = "100%";
@@ -119,6 +120,12 @@ export function drawScale(protein_log2fc) {
   minLabel.style.lineHeight = "1.25rem";
   minLabel.textContent = min.toFixed(2);
   labels.appendChild(minLabel);
+
+	const midLabel = document.createElement("span");
+	midLabel.style.fontSize = ".875rem";
+	midLabel.style.lineHeight = "1.25rem";
+	midLabel.textContent = middle.toFixed(2);
+	labels.appendChild(midLabel);
 
   const maxLabel = document.createElement("span");
   maxLabel.style.fontSize = ".875rem";
