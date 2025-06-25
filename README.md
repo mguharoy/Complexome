@@ -2,6 +2,13 @@
 
 An application to discover insights from proteomics data by integrating with the complexome (available for multiple species). The core principle behind this analysis is that a more comprehensive understanding of functional perturbations can be achieved by contextualizing affected (i.e., differentially expressed) proteins within their complexes and functional assemblies in the cellular environment.
 
+Proteomics log fold change data (and associated statistical values) are used to analyze complexome remodeling between biological conditions. 
+Potential use cases can include:
+- Sample vs control (e.g., disease condition, patient mutations)
+- Perturbation (e.g., gene knockdown)-based phenotypic effects vs wild-type
+- Estimate effects on pathway(s) and cross-talk by knockout/knockdown or chemically blocking pathways
+- Trajectory (time t vs initial t0) studies
+- etc….
 
 ## Usage
 
