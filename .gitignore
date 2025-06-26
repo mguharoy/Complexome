@@ -1,0 +1,12 @@
+*.beam
+*.ez
+/build
+erl_crash.dump
+
+# Editor files
+*~
+
+# Devenv
+.devenv.flake.nix
+devenv.local.nix
+.devenv/
