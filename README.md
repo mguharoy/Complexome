@@ -28,4 +28,4 @@ to discuss what you would like to change.
 If you find this software useful, please cite:
 [manuscript submitted] Add [CITATION.cff](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-citation-files)
 
-Preprint describing the application of this software to metabolic disease is available at <a href="https://www.biorxiv.org/content/10.1101/2023.12.30.573613v1">
+Preprint describing the application of this software to metabolic disease is available at <https://www.biorxiv.org/content/10.1101/2023.12.30.573613v1>
