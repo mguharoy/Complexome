@@ -1,0 +1,13 @@
+# Editor files
+*~
+
+# Devenv
+.devenv.flake.nix
+devenv.local.nix
+.devenv/
+
+# Node
+node_modules/
+
+# Data
+data/

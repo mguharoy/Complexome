@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Complexome</title>
+    <link rel="stylesheet" href="/vib.min.css">
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body class="vib-body">
+    <header class="vib-header">
+      <div class="vib-bar-breadcrumb">
+        <div class="vib-breadcrumbs">
+          <a class="breadcrumb" href="https://vib.be" target="_blank" rel="noopener noreferrer">
+            <img class="vib-logo-small" src="https://vibbits.github.io/vib-css/images/vib.svg" alt="VIB Logo">
+            <span class="vib-breadcrumb-arrow"></span>
+          </a>
+          <a class="breadcrumb" href="https://vib.be/en/technologies/technology-portfolio" target="_blank" rel="noopener noreferrer">
+            <span class="vib-link-title">VIB Technologies</span>
+            <span class="vib-breadcrumb-arrow"></span>
+          </a>
+          <a class="breadcrumb" href="https://metabolomicscore-leuven.sites.vib.be/en" target="_blank" rel="noopener noreferrer">
+            <span class="vib-link-title">Metabolomics Core - Leuven</span>
+            <span class="vib-breadcrumb-arrow"></span>
+          </a>
+          <a class="breadcrumb" href="/">
+            <span class="vib-link-title">Complexome</span>
+            <span class="vib-breadcrumb-arrow"></span>
+          </a>
+        </div>
+      </div>
+      <nav class="vib-nav">
+        <h1 class="vib-app-logo">Complexome Profiler</h1>
+      </nav>
+    </header>
+    <main class="vib-main">
+      <h2>Detecting altered protein complexes across biological conditions using proteomics data</h2>
+      <h3>Brief Outline</h3>
+      <p>
+        The core principle of this analysis is that a more comprehensive understanding of functional perturbations can be achieved by contextualizing affected (i.e., differentially expressed) proteins within their complexes and functional assemblies in the cellular environment. This integrative approach (<em>middle</em>) enables a more precise identification of disrupted pathways and biological functions compared to a simplistic, &quot;binary&quot; perspective asking whether individual proteins are differentially expressed or not (<em>left</em>). This approach provides a host of tangible, actionable and comprehensive insights into biological mechanisms (<em>right</em>).
+      </p>
+      <p>
+        A preprint showing the application of this pipeline to metabolic disease is currently available on <a href="https://www.google.com/url?q=https%3A%2F%2Fwww.biorxiv.org%2Fcontent%2F10.1101%2F2023.12.30.573613v1">bioRxiv</a>.
+      </p>
+      <figure>
+        <img src="/images/overview.jpg" alt="Complex Profiler context overview" width="1000" height="400">
+      </figure>
+
+      <form>
+        <div>
+          <label for="proteomics-file">Select your proteomics file:</label>
+          <input type="file" name="proteomics-file" id="proteomics-file">
+        </div>
+
+        <div>
+          <label for="species">Species</label>
+          <select name="species" id="species" disabled>
+            <option value="9606">Homo sapiens</option>
+            <option value="10090">Mus musculus</option>
+            <option value="559292">Saccharomyces cerevisiae</option>
+            <option value="83333">Escherichia coli strain K12</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="log2fc-threshold">log<sub>2</sub>(fold change)</label>
+          <input type="number" value="1" name="log2fc-threshold" id="log2fc-threshold" disabled>
+        </div>
+
+        <div>
+          <label for="adjp-threshold">Adjusted P-value threshold</label>
+          <input type="number" value="0.05" name="adjp-threshold" id="adjp-threshold" disabled>
+        </div>
+
+        <div>
+          <label for="top-n-go-terms">Maximum number of Gene Ontology terms</label>
+          <input type="number" value="10" name="top-n-go-terms" id="top-n-go-terms" disabled>
+        </div>
+      </form>
+      <div id="results">
+        <div class="tooltip"></div>
+        <figure id="subunit-dist"></figure>
+        <figure id="shared-subunits"></figure>
+        <figure id="proteomics-coverage"></figure>
+        <figure id="venna"></figure>
+      </div>
+    </main>
+  </body>
+  <script type="module" src="/setup.mjs"></script>
+</html>

@@ -1,0 +1,32 @@
+div#results {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1em;
+}
+
+.bar {
+    fill: green;
+}
+
+.bar:hover {
+    fill: lightgreen;
+}
+
+div.tooltip {
+    position: absolute;
+    opacity: 0;
+    font-size: 0.7em;
+    z-index: 2;
+    padding: 0.2em;
+    background: rgba(255,255,255,0.7);
+    border-radius: 3px;
+    border: 1px solid black;
+    pointer-events: none;
+}
+
+figure {
+    position: relative;
+    background-color: white;
+}
