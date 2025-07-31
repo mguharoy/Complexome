@@ -13,8 +13,8 @@
   "license": "GPL-3.0-or-later",
   "author": "",
   "type": "module",
-  "main": "src/index.js",
-  "module": "src/main.js",
+  "main": "src/setup.mjs",
+  "module": "src/setup.mjs",
   "directories": {
     "test": "test"
   },

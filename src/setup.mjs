@@ -1,10 +1,12 @@
 /**
  * Set up the workflow structure with event listeners.
  * Also run the worker thread to decode CSV documents.
+ * And the service worker to cache everything.
  */
 
-//import Plotly from "https://cdn.skypack.dev/plotly.js-dist";
 import * as d3 from "https://esm.run/d3";
+
+import { minmax, bisect } from "./numeric.mjs";
 
 async function onProteomicsFile(files, csv) {
 	if (files && files.length === 1) {
@@ -37,14 +39,6 @@ function enableControls() {
 	document.getElementById("top-n-go-terms").disabled = false;
 }
 
-/**
- * @param {Array<number>} data - the data to summarize
- * @return [number, number]    - [minimum value, maximum value]
- */
-function minmax(data) {
-	return data.reduce(([min, max], value) => [Math.min(min, value), Math.max(max, value)], [Infinity, -Infinity]);
-}
-
 function histogramPlot(data, options) {
 	let [min, max] = minmax(data);
 	const numBins = (min === max) ? 1 : Math.min(data.length, Math.max(10, Math.floor(data.length / 160)));
@@ -58,6 +52,7 @@ function histogramPlot(data, options) {
 				.thresholds(x.ticks(numBins));
 
 	const bins = histogram(data).reduce((acc, val) => {
+		if (val.length === 0) return acc;
 		const [bin_min, bin_max] = minmax(val);
 		if (acc.length === 0) {
 			return [
@@ -75,6 +70,7 @@ function histogramPlot(data, options) {
 			}];
 		}
 	}, []);
+
 	const maxHeight = d3.max(bins, (d) => d.height);
 
 	const y = d3.scaleLinear()
@@ -116,7 +112,6 @@ function histogramPlot(data, options) {
 		.attr("width", (d) => x(d.to) - x(d.from))
 		.attr("height", (d) => options.height - y(d.height) - 2*options.vmargin)
 		.on("mouseover", (event, d) => {
-			console.log(d.height, max / 5);
 			tooltip.transition().duration(200).style("opacity", 1);
 			tooltip.html(`${d.height}`)
 				.style("left", `${x(d.from)}px`)
@@ -222,18 +217,88 @@ function vennPlot(data, options) {
 	const intersection = data.A.intersection(data.B);
 	const total = data.A.size + data.B.size;
 	const [Ab, aB, AB] = [data.A.size / total, data.B.size / total, intersection.size / total];
-	const [R, r] = [Math.sqrt(Aa / Math.PI), Math.sqrt(Ab / Math.PI)];
-	if (intersection.size > 0) {
-		
-	} else {
-		const d = R + r + Math.max((r + R / 2), 0.2);
-	}
+	console.log(`|Ab|=${Ab} |aB|=${aB} |AB|=${AB}`);
+	const [R, r] = [Math.sqrt(Ab / Math.PI), Math.sqrt(aB / Math.PI)];
+	const scale = (options.height - options.vmargin) / (2 * Math.max(R, r));
+	console.log(`Scale=${scale}`);
+	const bracket = AB < aB ? [R, 1] : [0.001, R];
+	const d = (intersection.size > 0) ? (data.B.isSubsetOf(data.A) ? Math.abs(R - r) + 0.0001 : bisect(R, r, AB, bracket)) : R + r + Math.max((r + R / 2), 0.2);
+	const xoff = (options.width/2) - (d/2*scale);
+	console.log(`d=${d} R=${R} r=${r}`);
+
+	const xintReal = -(r*r - R*R - d*d) / (2 * d);
+	const xint = xintReal * scale + xoff;
+	const y1int = Math.sqrt(R*R - xintReal*xintReal) * scale + (options.height / 2);
+	const y2int = -Math.sqrt(R*R - xintReal*xintReal) * scale + (options.height / 2);
+	console.log(xint, y1int, y2int);
+
 	const svg = d3.create("svg")
 				.attr("width", options.width)
 				.attr("height", options.height)
 				.attr("viewBox", [0, 0, options.width, options.height])
 				.attr("style", "max-width: 100%; height: auto;");
 	const tooltip = d3.create("div").classed("tooltip", true);
+
+	svg.append("path")
+		.attr("class", "complexome-venn")
+		.attr("d", `M ${xint} ${y2int} A ${R * scale} ${R * scale} 0 1 0 ${xint} ${y1int} A ${r * scale} ${r * scale} 0 0 1 ${xint} ${y2int}Z`)
+		.on("mouseenter", (event) => {
+			const [mx, my] = d3.pointer(event);
+			tooltip.transition().duration(200).style("opacity", 1);
+			tooltip.html(data.A.size - intersection.size)
+				.style("left", `${mx}px`)
+				.style("top", `${my - 22}px`);
+		})
+		.on("mousemove", (event) => {
+			const [mx, my] = d3.pointer(event);
+			tooltip.style("left", `${mx}px`).style("top", `${my - 22}px`);
+		})
+		.on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
+	svg.append("path")
+		.attr("class", "intersection-venn")
+		.attr("d", `M ${xint} ${y2int} A ${r * scale} ${r * scale} 0 0 0 ${xint} ${y1int} A ${R * scale} ${R * scale} 0 0 0 ${xint} ${y2int}Z`)
+		.on("mouseenter", (event) => {
+			const [mx, my] = d3.pointer(event);
+			tooltip.transition().duration(200).style("opacity", 1);
+			tooltip.html(intersection.size)
+				.style("left", `${mx}px`)
+				.style("top", `${my - 22}px`);
+		})
+		.on("mousemove", (event) => {
+			const [mx, my] = d3.pointer(event);
+			tooltip.style("left", `${mx}px`).style("top", `${my - 22}px`);
+		})
+		.on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
+	svg.append("path")
+		.attr("class", "proteomics-venn")
+		.attr("d", `M ${xint} ${y1int} A ${r * scale} ${r * scale} 0 1 0 ${xint} ${y2int} A ${R * scale} ${R * scale} 0 0 1 ${xint} ${y1int}Z`)
+	  .on("mouseenter", (event) => {
+			const [mx, my] = d3.pointer(event);
+			tooltip.transition().duration(200).style("opacity", 1);
+			tooltip.html(data.B.size - intersection.size)
+				.style("left", `${mx}px`)
+				.style("top", `${my - 22}px`);
+		})
+		.on("mousemove", (event) => {
+			const [mx, my] = d3.pointer(event);
+			tooltip.style("left", `${mx}px`).style("top", `${my - 22}px`);
+		})
+		.on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
+	svg.append("text")
+		.attr("class", "venn-label")
+		.attr("x", options.width / 3)
+		.attr("y", 4 * options.height / 5)
+		.attr("fill", "currentColor")
+		.attr("text-anchor", "end")
+		.text(options.alabel);
+	svg.append("text")
+		.attr("class", "venn-label")
+		.attr("x", 2 * options.width / 3)
+		.attr("y", 4 * options.height / 5)
+		.attr("fill", "currentColor")
+		.attr("text-anchor", "start")
+		.text(options.blabel);
+	
 	return [svg.node(), tooltip.node()];
 }
 
@@ -245,7 +310,7 @@ function mapGetWithDefault(map, key, dflt) {
 	}
 }
 
-function subunitDistributionPlot(selector) {
+function subunitDistributionPlot() {
 	const count = new Map();
 
 	for (const [complexID, cplx] of window.complexome[0]) {
@@ -255,7 +320,6 @@ function subunitDistributionPlot(selector) {
 	}
 	return barPlot(Array.from(count.entries()).sort((a,b) => +a[0] - +b[0]),
 								 {
-									 parent: selector,
 									 hmargin: 30,
 									 vmargin: 30,
 									 width: 600,
@@ -268,7 +332,7 @@ function subunitDistributionPlot(selector) {
 								)
 }
 
-function sharedSubunitsPlot(selector) {
+function sharedSubunitsPlot() {
 	const count = new Map();
 	const proteinObsCount = new Map();
 
@@ -286,26 +350,26 @@ function sharedSubunitsPlot(selector) {
 	}
 
 	return barPlot(Array.from(count.entries()).sort(),
-								 {parent: selector,
-									hmargin: 40,
-									vmargin: 30,
-									width: 600,
-									height: 400,
-									xlabel: "Number of protein subunits",
-									ylabel: "↑ Frequency",
-									title: "Shared protein subunits",
-									scale: d3.scaleLinear,
-									xticks: Array.from(count.keys()).sort(),
+								 {
+									 hmargin: 40,
+									 vmargin: 30,
+									 width: 600,
+									 height: 400,
+									 xlabel: "Number of protein subunits",
+									 ylabel: "↑ Frequency",
+									 title: "Shared protein subunits",
+									 scale: d3.scaleLinear,
+									 xticks: Array.from(count.keys()).sort(),
 								 }
 								)
 }
 
 function drawComplexomePlots() {
-  document.getElementById("subunit-dist").replaceChildren(...subunitDistributionPlot("#subunit-dist"));
-	document.getElementById("shared-subunits").replaceChildren(...sharedSubunitsPlot("#shared-subunits"));
+  document.getElementById("subunit-dist").replaceChildren(...subunitDistributionPlot());
+	document.getElementById("shared-subunits").replaceChildren(...sharedSubunitsPlot());
 }
 
-function coveragePlot(selector) {
+function coveragePlot() {
 	const coverage = new Map();
 	for (const [complexID, cplx] of window.complexome[0]) {
 		const subunits = Array.from(cplx.values())
@@ -319,20 +383,42 @@ function coveragePlot(selector) {
 	}
 
 	return histogramPlot(Array.from(coverage.values()),
-								 {parent: selector,
-									hmargin: 20,
-									vmargin: 20,
-									width: 600,
-									height: 400,
-									xlabel: "Proteomics coverage",
-									ylabel: "↑ Frequency",
-									title: "",
+								 {
+									 hmargin: 20,
+									 vmargin: 20,
+									 width: 600,
+									 height: 400,
+									 xlabel: "Proteomics coverage",
+									 ylabel: "↑ Frequency",
+									 title: "",
 								 }
 								)
 }
 
+function vennDiagram() {
+	const allCanonicalSubunits = new Set();
+	for (const [complexID, cplx] of window.complexome[0]) {
+		cplx.values()
+			.filter((subunit) => !subunit.includes("CPX-") && !subunit.includes("URS") && !subunit.includes("CHEBI:"))
+			.map((subunit) => (subunit.includes("-") || subunit.includes("_")) ? subunit.slice(6) : subunit)
+			.forEach((subunit) => {
+				allCanonicalSubunits.add(subunit);
+			});
+	}
+	return vennPlot({A: allCanonicalSubunits, B: new Set(window.userdata.keys())},
+									{
+										hmargin: 20,
+										vmargin: 20,
+										width: 600,
+										height: 400,
+										alabel: "Complexome proteins",
+										blabel: "Proteomics dataset",
+									})
+}
+
 function drawPlots() {
-	document.getElementById("proteomics-coverage").replaceChildren(...coveragePlot("#proteomics-coverage"));
+	document.getElementById("proteomics-coverage").replaceChildren(...coveragePlot());
+	document.getElementById("venn").replaceChildren(...vennDiagram());
 }
 
 function handleMessage(event) {

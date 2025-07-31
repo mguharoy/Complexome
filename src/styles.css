@@ -7,11 +7,11 @@ div#results {
 }
 
 .bar {
-    fill: green;
+    fill: #99ee99;
 }
 
 .bar:hover {
-    fill: lightgreen;
+    fill: #147514;
 }
 
 div.tooltip {
@@ -29,4 +29,41 @@ div.tooltip {
 figure {
     position: relative;
     background-color: white;
+}
+
+.circle {
+    fill: none;
+    stroke: #999999;
+    stroke-width: 3px;
+}
+
+.complexome-venn {
+    fill: #e6b2b2;
+    stroke: none;
+}
+
+.complexome-venn:hover {
+    fill: #6c2323;
+}
+
+.intersection-venn {
+    fill: #e0ba98;
+    stroke: none;
+}
+
+.intersection-venn:hover {
+    fill: #65401e;
+}
+
+.proteomics-venn {
+    fill: #99cc99;
+    stroke: none;
+}
+
+.proteomics-venn:hover {
+    fill: #147514;
+}
+
+.venn-label {
+    pointer-events: none;
 }
