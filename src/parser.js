@@ -22,8 +22,9 @@ self.processComplexomeData = function(tsv) {
 	const complexes = new Map();
 	const complexNames = new Map();
 	const ontologyTerms = new Map();
+	const crossRefs = new Map();
 
-	for (const row of columnFilteredRows(tsv, ["#Complex ac", "Recommended name", "Taxonomy identifier", "Identifiers (and stoichiometry) of molecules in complex", "Expanded participant list", "Cross references"])) {
+	for (const row of columnFilteredRows(tsv, ["#Complex ac", "Recommended name", "Taxonomy identifier", "Identifiers (and stoichiometry) of molecules in complex", "Expanded participant list", "Go Annotations", "Cross references"])) {
 		const complexID = row["#Complex ac"];
 		const participants = row["Identifiers (and stoichiometry) of molecules in complex"];
 		const complexMembers = expandParticipants(participants).union(participants.includes("CPX-") ? expandParticipants(row["Expanded participant list"]) : new Set());
@@ -34,16 +35,21 @@ self.processComplexomeData = function(tsv) {
 			throw new Error(`Complex ID already exists: ${complexID}`);
 		}
 
-		const geneOntologyTerms = row["Cross references"].split("|");
+		const geneOntologyTerms = row["Go Annotations"].split("|");
 		if (!ontologyTerms.has(complexID)) {
 			ontologyTerms.set(complexID, geneOntologyTerms);
 		} else {
 			throw new Error(`Complex ID already exists: ${complexID}`);
 		}
+
+		crossRefs.set(complexID, row["Cross references"]
+			.split("|")
+			.filter((ref) => ref.startsWith("reactome:"))
+			.map((ref) => ref.slice(9)));
 	}
 
 	if ((complexes.size === complexNames.size) && (complexNames.size === ontologyTerms.size)) {
-		return [complexes, complexNames, ontologyTerms];
+		return [complexes, complexNames, ontologyTerms, crossRefs];
 	}
 
 	throw new Error(`I found an inconsistency: num_complexes=${complexes.size}, num_names=${complexNames.size}, num_gene_ontology_terms=${ontologyTerms.size}`);
@@ -58,7 +64,7 @@ function processUserData(tsv) {
 		if (isNaN(log2fc) || isNaN(adjpval)) {
 			continue;
 		}
-		result.set(row[0], [row[1], row[2]]);
+		result.set(row[0], [log2fc, adjpval]);
 	}
 
 	return result;
@@ -69,30 +75,30 @@ self.onmessage = async (event) => {
 
 	switch (op) {
 
-	case "getcomplex": {
-		const complexid = data;
-		console.log(`Worker now requesting ${complexid}`);
-		if (self.cache.has(complexid)) {
-			self.postMessage(self.cache.get(complexid));
-		} else {
-			const response = await fetch(`https://ftp.ebi.ac.uk/pub/databases/intact/complex/current/complextab/${complexid}.tsv`);
-			if (response.ok) {
-				const text = await response.text();
-				const tsv = tsvParse(text, "\t");
-				const cpxdata = self.processComplexomeData(tsv);
-				self.cache.set(complexid, cpxdata);
-				self.postMessage({"complex": cpxdata});
+		case "getcomplex": {
+			const complexid = data;
+			console.log(`Worker now requesting ${complexid}`);
+			if (self.cache.has(complexid)) {
+				self.postMessage(self.cache.get(complexid));
 			} else {
-				self.postMessage({"error": "network error"});
+				const response = await fetch(`https://ftp.ebi.ac.uk/pub/databases/intact/complex/current/complextab/${complexid}.tsv`);
+				if (response.ok) {
+					const text = await response.text();
+					const tsv = tsvParse(text, "\t");
+					const cpxdata = self.processComplexomeData(tsv);
+					self.cache.set(complexid, cpxdata);
+					self.postMessage({ "id": complexid, "complex": cpxdata });
+				} else {
+					self.postMessage({ "error": "network error" });
+				}
 			}
+			break;
 		}
-		break;
-	}
 
-	case "csv": {
-		const result = tsvParse(data, ",");
-		self.postMessage({ "userdata": processUserData(result) });
-		break;
-	}
+		case "csv": {
+			const result = tsvParse(data, ",");
+			self.postMessage({ "userdata": processUserData(result) });
+			break;
+		}
 	}
 };

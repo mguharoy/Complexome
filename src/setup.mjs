@@ -7,6 +7,7 @@
 import * as d3 from "https://esm.run/d3";
 
 import { minmax, bisect } from "./numeric.mjs";
+import { barPlot, histogramPlot, vennPlot, volcanoPlot } from "./plot.mjs";
 
 async function onProteomicsFile(files, csv) {
 	if (files && files.length === 1) {
@@ -37,269 +38,6 @@ function enableControls() {
 	document.getElementById("log2fc-threshold").disabled = false;
 	document.getElementById("adjp-threshold").disabled = false;
 	document.getElementById("top-n-go-terms").disabled = false;
-}
-
-function histogramPlot(data, options) {
-	let [min, max] = minmax(data);
-	const numBins = (min === max) ? 1 : Math.min(data.length, Math.max(10, Math.floor(data.length / 160)));
-
-	const x = d3.scaleLinear()
-				.domain([0, 1.0])
-				.range([2*options.hmargin, options.width - options.hmargin]);
-	const histogram = d3.histogram()
-				.value((d) => d)
-				.domain(x.domain())
-				.thresholds(x.ticks(numBins));
-
-	const bins = histogram(data).reduce((acc, val) => {
-		if (val.length === 0) return acc;
-		const [bin_min, bin_max] = minmax(val);
-		if (acc.length === 0) {
-			return [
-				{
-					from: 0,
-					to: Math.max(bin_max, 0.01),
-					height: val.length,
-				}
-			];
-		} else {
-			return [...acc, {
-				from: acc[acc.length - 1].to,
-				to: bin_max,
-				height: val.length,
-			}];
-		}
-	}, []);
-
-	const maxHeight = d3.max(bins, (d) => d.height);
-
-	const y = d3.scaleLinear()
-				.domain([0, d3.max(bins, (d) => d.height)])
-				.range([options.height - 2*options.vmargin, options.vmargin])
-
-	const svg = d3.create("svg")
-				.attr("width", options.width)
-				.attr("height", options.height)
-				.attr("viewBox", [0, 0, options.width, options.height])
-				.attr("style", "max-width: 100%; height: auto;");
-	const tooltip = d3.create("div").classed("tooltip", true);
-
-	svg.append("g")
-		.attr("transform", `translate(0, ${options.height - options.vmargin - 10})`)
-		.call(d3.axisBottom(x))
-		.call((g) => g.append("text")
-					.attr("x", options.width / 2)
-					.attr("y", 25)
-					.attr("fill", "currentColor")
-					.attr("text-anchor", "middle")
-					.text(options.xlabel));
-	svg.append("g")
-		.attr("transform", `translate(${2*options.hmargin}, ${options.vmargin - 10})`)
-		.call(d3.axisLeft(y))
-		.call(g => g.append("text")
-          .attr("x", -options.hmargin)
-          .attr("y", options.vmargin - 10)
-          .attr("fill", "currentColor")
-          .attr("text-anchor", "start")
-          .text(options.ylabel));
-	svg.append("g")
-		.selectAll()
-		.data(bins)
-		.join("rect")
-		.attr("class", "bar")
-		.attr("x", 1)
-		.attr("transform", (d) => `translate(${x(d.from)}, ${y(d.height) + options.vmargin - 10})`)
-		.attr("width", (d) => x(d.to) - x(d.from))
-		.attr("height", (d) => options.height - y(d.height) - 2*options.vmargin)
-		.on("mouseover", (event, d) => {
-			tooltip.transition().duration(200).style("opacity", 1);
-			tooltip.html(`${d.height}`)
-				.style("left", `${x(d.from)}px`)
-				.style("top", `${y(Math.max(d.height, maxHeight / 10)) + 10}px`);
-		})
-		.on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
-
-	svg.append("text")
-		.attr("x", options.width / 2)
-		.attr("y", options.vmargin)
-		.attr("text-anchor", "middle")
-		.style("font-size", "1.5em")
-		.text(options.title);
-
-	return [svg.node(), tooltip.node()];
-}
-
-/**
- * @param {Array<[x, y]>} data - the data to plot
- * @param {Object} options
- * @param {string} options.parent
- * @param {number} options.hmargin
- * @param {number} options.vmargin
- * @param {number} options.width
- * @param {number} options.height
- * @param {string} options.title
- * @param {string} options.xlabel
- * @param {string} options.ylabel
- * @param {d3.scale} options.scale
- * @param {string[] | undefined} options.xticks
- */
-function barPlot(data, options) {
-	const x = d3.scaleBand()
-				.domain(data.map((d) => d[0]))
-				.range([options.hmargin, options.width - options.hmargin])
-				.padding(0.1);
-	// const y = d3.scaleLinear()
-	// 			.domain([0, d3.max(data, (d) => d[1])])
-	// 			.range([options.height - options.margin, options.margin]);
-	const max = d3.max(data, (d) => d[1]);
-  const y = options.scale()
-				.domain([1, max])
-				.range([options.height - options.vmargin, options.vmargin]);
-	const svg = d3.create("svg")
-				.attr("width", options.width)
-				.attr("height", options.height)
-				.attr("viewBox", [0, 0, options.width, options.height])
-				.attr("style", "max-width: 100%; height: auto;");
-	const tooltip = d3.create("div").classed("tooltip", true);
-
-	const xaxis = options.xticks ?
-				d3.axisBottom(x).tickValues(options.xticks) :
-				d3.axisBottom(x).tickValues(x.domain().filter((_, d) => (d+1) % 5 === 0));
-
-	svg.append("g")
-    .selectAll()
-    .data(data)
-    .join("rect")
-		.attr("class", "bar")
-    .attr("x", (d) => x(d[0]))
-    .attr("y", (d) => y(d[1]))
-    .attr("height", (d) => {return y(1) - y(d[1]);})
-    .attr("width", x.bandwidth())
-		.on("mouseover", (event, d) => {
-			tooltip.transition().duration(200).style("opacity", 1);
-			tooltip.html(`${d[1]}`)
-				.style("left", `${x(d[0])}px`)
-				.style("top", `${y(Math.max(d[1], max / 10))}px`);
-		})
-		.on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
-
-	svg.append("g")
-    .attr("transform", `translate(0, ${options.height - options.vmargin})`)
-    .call(xaxis)
-		.call((g) => g.append("text")
-					.attr("x", options.width / 2)
-					.attr("y", 25)
-					.attr("fill", "currentColor")
-					.attr("text-anchor", "middle")
-					.text(options.xlabel));
-
-  svg.append("g")
-    .attr("transform", `translate(${options.hmargin}, 0)`)
-    .call(d3.axisLeft(y))
-		.call(g => g.append("text")
-          .attr("x", -options.hmargin)
-          .attr("y", options.vmargin - 10)
-          .attr("fill", "currentColor")
-          .attr("text-anchor", "start")
-          .text(options.ylabel));
-
-	svg.append("text")
-		.attr("x", options.width / 2)
-		.attr("y", options.vmargin)
-		.attr("text-anchor", "middle")
-		.style("font-size", "1.5em")
-		.text(options.title);
-
-  return [svg.node(), tooltip.node()];
-}
-
-function vennPlot(data, options) {
-	const intersection = data.A.intersection(data.B);
-	const total = data.A.size + data.B.size;
-	const [Ab, aB, AB] = [data.A.size / total, data.B.size / total, intersection.size / total];
-	console.log(`|Ab|=${Ab} |aB|=${aB} |AB|=${AB}`);
-	const [R, r] = [Math.sqrt(Ab / Math.PI), Math.sqrt(aB / Math.PI)];
-	const scale = (options.height - options.vmargin) / (2 * Math.max(R, r));
-	console.log(`Scale=${scale}`);
-	const bracket = AB < aB ? [R, 1] : [0.001, R];
-	const d = (intersection.size > 0) ? (data.B.isSubsetOf(data.A) ? Math.abs(R - r) + 0.0001 : bisect(R, r, AB, bracket)) : R + r + Math.max((r + R / 2), 0.2);
-	const xoff = (options.width/2) - (d/2*scale);
-	console.log(`d=${d} R=${R} r=${r}`);
-
-	const xintReal = -(r*r - R*R - d*d) / (2 * d);
-	const xint = xintReal * scale + xoff;
-	const y1int = Math.sqrt(R*R - xintReal*xintReal) * scale + (options.height / 2);
-	const y2int = -Math.sqrt(R*R - xintReal*xintReal) * scale + (options.height / 2);
-	console.log(xint, y1int, y2int);
-
-	const svg = d3.create("svg")
-				.attr("width", options.width)
-				.attr("height", options.height)
-				.attr("viewBox", [0, 0, options.width, options.height])
-				.attr("style", "max-width: 100%; height: auto;");
-	const tooltip = d3.create("div").classed("tooltip", true);
-
-	svg.append("path")
-		.attr("class", "complexome-venn")
-		.attr("d", `M ${xint} ${y2int} A ${R * scale} ${R * scale} 0 1 0 ${xint} ${y1int} A ${r * scale} ${r * scale} 0 0 1 ${xint} ${y2int}Z`)
-		.on("mouseenter", (event) => {
-			const [mx, my] = d3.pointer(event);
-			tooltip.transition().duration(200).style("opacity", 1);
-			tooltip.html(data.A.size - intersection.size)
-				.style("left", `${mx}px`)
-				.style("top", `${my - 22}px`);
-		})
-		.on("mousemove", (event) => {
-			const [mx, my] = d3.pointer(event);
-			tooltip.style("left", `${mx}px`).style("top", `${my - 22}px`);
-		})
-		.on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
-	svg.append("path")
-		.attr("class", "intersection-venn")
-		.attr("d", `M ${xint} ${y2int} A ${r * scale} ${r * scale} 0 0 0 ${xint} ${y1int} A ${R * scale} ${R * scale} 0 0 0 ${xint} ${y2int}Z`)
-		.on("mouseenter", (event) => {
-			const [mx, my] = d3.pointer(event);
-			tooltip.transition().duration(200).style("opacity", 1);
-			tooltip.html(intersection.size)
-				.style("left", `${mx}px`)
-				.style("top", `${my - 22}px`);
-		})
-		.on("mousemove", (event) => {
-			const [mx, my] = d3.pointer(event);
-			tooltip.style("left", `${mx}px`).style("top", `${my - 22}px`);
-		})
-		.on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
-	svg.append("path")
-		.attr("class", "proteomics-venn")
-		.attr("d", `M ${xint} ${y1int} A ${r * scale} ${r * scale} 0 1 0 ${xint} ${y2int} A ${R * scale} ${R * scale} 0 0 1 ${xint} ${y1int}Z`)
-	  .on("mouseenter", (event) => {
-			const [mx, my] = d3.pointer(event);
-			tooltip.transition().duration(200).style("opacity", 1);
-			tooltip.html(data.B.size - intersection.size)
-				.style("left", `${mx}px`)
-				.style("top", `${my - 22}px`);
-		})
-		.on("mousemove", (event) => {
-			const [mx, my] = d3.pointer(event);
-			tooltip.style("left", `${mx}px`).style("top", `${my - 22}px`);
-		})
-		.on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
-	svg.append("text")
-		.attr("class", "venn-label")
-		.attr("x", options.width / 3)
-		.attr("y", 4 * options.height / 5)
-		.attr("fill", "currentColor")
-		.attr("text-anchor", "end")
-		.text(options.alabel);
-	svg.append("text")
-		.attr("class", "venn-label")
-		.attr("x", 2 * options.width / 3)
-		.attr("y", 4 * options.height / 5)
-		.attr("fill", "currentColor")
-		.attr("text-anchor", "start")
-		.text(options.blabel);
-	
-	return [svg.node(), tooltip.node()];
 }
 
 function mapGetWithDefault(map, key, dflt) {
@@ -416,9 +154,27 @@ function vennDiagram() {
 									})
 }
 
+function volcano() {
+	const data = Array.from(window.userdata?.entries().map(([name, [log2fc, adjpval]]) => {
+		return {"adjPval": adjpval, "log2fc": log2fc, "name": name};
+	}));
+	return volcanoPlot(data, {
+		hmargin: 20,
+		vmargin: 30,
+		width: 600,
+		height: 400,
+		xlabel: "log2 (FC)",
+		ylabel: "-log10 (adjPval)",
+		title: "Volcano plot",
+		log2fcThreshold: document.getElementById("log2fc-threshold").value,
+		adjpThreshold: document.getElementById("adjp-threshold").value,
+	});
+}
+
 function drawPlots() {
-	document.getElementById("proteomics-coverage").replaceChildren(...coveragePlot());
-	document.getElementById("venn").replaceChildren(...vennDiagram());
+	document.getElementById("proteomics-coverage")?.replaceChildren(...coveragePlot());
+	document.getElementById("venn")?.replaceChildren(...vennDiagram());
+	document.getElementById("volcano")?.replaceChildren(...volcano());
 }
 
 function handleMessage(event) {
@@ -429,6 +185,7 @@ function handleMessage(event) {
 			drawPlots();
 		}
 	} else if ("complex" in event.data) {
+		console.log(`Got data from complex: ${event.data['complex']}`)
 		window.complexome = event.data["complex"];
 		drawComplexomePlots();
 		if (window.userdata) {
@@ -440,6 +197,7 @@ function handleMessage(event) {
 }
 
 async function setup() {
+	console.log('setup() running...')
 	// Preload default species
 	const species = document.querySelector("#species").value;
 

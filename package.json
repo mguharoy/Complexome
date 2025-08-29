@@ -1,5 +1,5 @@
 {
-  "name": "complexome",
+  "name": "complexome-profiler",
   "version": "1.0.0",
   "description": "An application to discover insights from proteomics data by integrating with the complexome from multiple species.",
   "homepage": "https://github.com/mguharoy/Complexome#readme",
@@ -14,19 +14,11 @@
   "author": "",
   "type": "module",
   "main": "src/setup.mjs",
-  "module": "src/setup.mjs",
   "directories": {
     "test": "test"
   },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "dependencies": {
-    "esm": "^3.2.25"
-  },
   "devDependencies": {
-    "eslint": "^9.30.0",
-    "prettier": "^3.6.2",
-    "typescript": "^5.8.3"
-  }
+    "@types/d3": "^7.4.3"
+  },
+  "module": "src/setup.mjs"
 }
