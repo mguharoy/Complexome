@@ -30,12 +30,7 @@
     "skipLibCheck": true
   },
 	"include": [
-		"src/main/**/*.mjs",
-		"src/shared/**/*.mjs",
-		"src/declarations.d.ts",
-		"src/globals.d.ts"
-	],
-	"exclude": [
-		"src/worker/**/*"
+		"src/**/*.mjs",
+		"src/declarations.d.ts"
 	]
 }

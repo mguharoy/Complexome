@@ -5,7 +5,7 @@
 
 import * as d3 from "https://esm.run/d3";
 
-import { minmax, bisect } from "./numeric.mjs";
+import { minmax, bisect } from "../shared/numeric.mjs";
 
 /**
  * @typedef PlotOptions Configure how the plot should be displayed
@@ -31,7 +31,7 @@ import { minmax, bisect } from "./numeric.mjs";
  * Draw a histogram from numeric data.
  * @param {number[]} data - The data to draw the histogram from.
  * @param {PlotOptions} options - Configure the plot visuals.
- * @returns {[Node | null, Node | null]} - Return the plot and tooltip DOM nodes.
+ * @returns {Node[]} - Return the plot and tooltip DOM nodes.
  */
 function histogramPlot(data, options) {
 	const [min, max] = minmax(data);
@@ -84,7 +84,7 @@ function histogramPlot(data, options) {
 	svg.append("g")
 		.attr("transform", `translate(${2 * options.hmargin}, ${options.vmargin - 10})`)
 		.call(d3.axisLeft(y))
-		.call(g => g.append("text")
+		.call((g) => g.append("text")
 			.attr("x", -options.hmargin)
 			.attr("y", options.vmargin - 10)
 			.attr("fill", "currentColor")
@@ -114,20 +114,21 @@ function histogramPlot(data, options) {
 		.style("font-size", "1.5em")
 		.text(options.title);
 
-	return [svg.node(), tooltip.node()];
+	const result = [svg.node(), tooltip.node()];
+	return (result[0] && result[1]) ? [result[0], result[1]] : [];
 }
 
 /**
  * @typedef BarPlotOptions Configure how a barplot should be displayed.
  *
  * @property scale {(range?: Iterable<number>) => d3.ScaleContinuousNumeric<number, number>} A y-axis scale from d3-scale.
- * @property xticks {string[] | undefined} The x-axis tick values.
+ * @property [xticks] {string[] | undefined} The x-axis tick values.
  */
 
 /**
  * @param {Array<[number, number]>} data - the data to plot.
  * @param {PlotOptions & BarPlotOptions} options - Configure the plot display.
- * @returns {[Node | null, Node | null]} The plot SVG node and the tooltip node.
+ * @returns {Node[]} The plot SVG node and the tooltip node.
  */
 function barPlot(data, options) {
 	const x = d3.scaleBand()
@@ -196,7 +197,8 @@ function barPlot(data, options) {
 		.style("font-size", "1.5em")
 		.text(options.title);
 
-	return [svg.node(), tooltip.node()];
+	const result = [svg.node(), tooltip.node()];
+	return (result[0] && result[1]) ? [result[0], result[1]] : [];
 }
 
 /**
@@ -219,6 +221,7 @@ function barPlot(data, options) {
  *
  * @param {VennData} data - Data to plot.
  * @param {Omit<PlotOptions, "xlabel" | "ylabel"> & VennPlotOptions} options - Configure the plot visuals.
+ * @returns {Node[]}
  */
 function vennPlot(data, options) {
 	const intersection = data.A.intersection(data.B);
@@ -306,7 +309,8 @@ function vennPlot(data, options) {
 		.attr("text-anchor", "start")
 		.text(options.blabel);
 
-	return [svg.node(), tooltip.node()];
+	const result = [svg.node(), tooltip.node()];
+	return (result[0] && result[1]) ? [result[0], result[1]] : [];
 }
 
 /**
@@ -330,7 +334,7 @@ function vennPlot(data, options) {
  *
  * @param {VolcanoDatum[]} data - The data to plot.
  * @param {PlotOptions & VolcanoPlotOptions} options - Configure the plot visuals.
- * @returns {[Node | null, Node | null]} - Return the plot and the tooltip DOM nodes.
+ * @returns {Node[]} - Return the plot and the tooltip DOM nodes.
  */
 function volcanoPlot(data, options) {
 	const [xmin, xmax] = minmax(data, (/** @type {VolcanoDatum} */ datum) => datum.adjPval);
@@ -344,7 +348,7 @@ function volcanoPlot(data, options) {
 				.range([options.vmargin, options.height - options.vmargin])
 				.nice();
 
-	/** @type {number} */
+	/** @type {[number, number]} */
 	const [countBlue, countRed] = data.reduce((acc, datum) => {
 		if (-Math.log10(datum.adjPval) > -Math.log10(options.adjpThreshold)) {
 			if (datum.log2fc > options.log2fcThreshold) {
@@ -410,7 +414,7 @@ function volcanoPlot(data, options) {
 		.on("mouseenter", (/** @type {MouseEvent} */ event, /** @type {VolcanoDatum} */ datum) => {
 			const [mx, my] = d3.pointer(event);
 			tooltip.transition().duration(200).style("opacity", 1);
-			tooltip.html(`${datum.name}<br/>log2(FC): ${datum.log2fc}<br/>-log10(pval): ${-Math.log10(datum.adjPval)}`)
+			tooltip.html(`${datum.name}<br/>log2(FC): ${datum.log2fc.toFixed(3)}<br/>-log10(pval): ${-Math.log10(datum.adjPval).toFixed(3)}`)
 				.style("left", `${mx + 5}px`)
 				.style("top", `${my - 46}px`);
 		})
@@ -457,7 +461,9 @@ function volcanoPlot(data, options) {
 		.attr("text-anchor", "middle")
 		.style("font-size", "1.5em")
 		.text(options.title);
-	return [svg.node(), tooltip.node()];
+
+	const result = [svg.node(), tooltip.node()];
+	return (result[0] && result[1]) ? [result[0], result[1]] : [];
 }
 
 

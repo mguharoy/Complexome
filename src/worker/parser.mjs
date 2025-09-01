@@ -1,7 +1,18 @@
-import { columnFilteredRows, tsvParse, rows } from "./tsv.js";
+// @ts-check
+import { columnFilteredRows, tsvParse, rows } from "../shared/tsv.mjs";
+
+/**
+ * @import {TSV} from '../shared/tsv.mjs'
+ */
 
 self.cache = new Map();
 
+
+/**
+ * Extract information on additional complex participants.
+ * @param {string} participants
+ * @returns {Set<string>}
+ */
 function expandParticipants(participants) {
 	let members = new Set();
 	for (const participant of participants.split("|")) {
@@ -18,7 +29,12 @@ function expandParticipants(participants) {
 	return members;
 }
 
-self.processComplexomeData = function(tsv) {
+/**
+ * Process data from the complexome.
+ * @param {TSV} tsv
+ * @returns {[Map<string, Set<string>>, Map<string, string>, Map<string, string[]>, Map<string, string[]>]}
+ */
+function processComplexomeData(tsv) {
 	const complexes = new Map();
 	const complexNames = new Map();
 	const ontologyTerms = new Map();
@@ -27,7 +43,11 @@ self.processComplexomeData = function(tsv) {
 	for (const row of columnFilteredRows(tsv, ["#Complex ac", "Recommended name", "Taxonomy identifier", "Identifiers (and stoichiometry) of molecules in complex", "Expanded participant list", "Go Annotations", "Cross references"])) {
 		const complexID = row["#Complex ac"];
 		const participants = row["Identifiers (and stoichiometry) of molecules in complex"];
-		const complexMembers = expandParticipants(participants).union(participants.includes("CPX-") ? expandParticipants(row["Expanded participant list"]) : new Set());
+		if (participants === undefined) {
+			continue;
+		}
+		const complexMembers = expandParticipants(participants)
+			.union(participants.includes("CPX-") ? expandParticipants(row["Expanded participant list"] ?? "") : new Set());
 		if (!complexes.has(complexID)) {
 			complexes.set(complexID, complexMembers);
 			complexNames.set(complexID, row["Recommended name"]);
@@ -35,14 +55,14 @@ self.processComplexomeData = function(tsv) {
 			throw new Error(`Complex ID already exists: ${complexID}`);
 		}
 
-		const geneOntologyTerms = row["Go Annotations"].split("|");
+		const geneOntologyTerms = row["Go Annotations"]?.split("|");
 		if (!ontologyTerms.has(complexID)) {
 			ontologyTerms.set(complexID, geneOntologyTerms);
 		} else {
 			throw new Error(`Complex ID already exists: ${complexID}`);
 		}
 
-		crossRefs.set(complexID, row["Cross references"]
+		crossRefs.set(complexID, (row["Cross references"] ?? "")
 			.split("|")
 			.filter((ref) => ref.startsWith("reactome:"))
 			.map((ref) => ref.slice(9)));
@@ -55,12 +75,17 @@ self.processComplexomeData = function(tsv) {
 	throw new Error(`I found an inconsistency: num_complexes=${complexes.size}, num_names=${complexNames.size}, num_gene_ontology_terms=${ontologyTerms.size}`);
 };
 
+/**
+ * Process user-supplied experimental data.
+ * @param {TSV} tsv - Tabluar data
+ * @returns {Map<string, [number, number]>}
+ */
 function processUserData(tsv) {
 	const result = new Map();
 
 	for (const row of rows(tsv)) {
-		const log2fc = parseFloat(row[1]);
-		const adjpval = parseFloat(row[2]);
+		const log2fc = parseFloat(row[1] ?? "nan");
+		const adjpval = parseFloat(row[2] ?? "nan");
 		if (isNaN(log2fc) || isNaN(adjpval)) {
 			continue;
 		}
@@ -85,7 +110,7 @@ self.onmessage = async (event) => {
 				if (response.ok) {
 					const text = await response.text();
 					const tsv = tsvParse(text, "\t");
-					const cpxdata = self.processComplexomeData(tsv);
+					const cpxdata = processComplexomeData(tsv);
 					self.cache.set(complexid, cpxdata);
 					self.postMessage({ "id": complexid, "complex": cpxdata });
 				} else {
