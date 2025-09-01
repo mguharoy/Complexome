@@ -5,8 +5,6 @@
  * And the service worker to cache everything.
  */
 
-import * as d3 from "https://esm.run/d3";
-
 import { barPlot, histogramPlot, vennPlot, volcanoPlot } from "./plot.mjs";
 
 /**
@@ -75,6 +73,28 @@ function mapGetWithDefault(map, key, dflt) {
 	return map.get(key) ?? dflt;
 }
 
+/**
+ * Set a value in a Map with a default if it doesn't exist.
+ * @template K
+ * @template V
+ * @param {Map<K, V>} map
+ * @param {K} key
+ * @param {(value: V) => V} updater
+ * @param {V} dflt
+ * @returns {V}
+ */
+function mapSetWithDefault(map, key, updater, dflt) {
+	const current = map.get(key);
+	if (current === undefined) {
+		map.set(key, dflt);
+		return dflt;
+	} else {
+		const value = updater(map.get(key) ?? dflt);
+		map.set(key, value);
+		return value;
+	}
+}
+
 function subunitDistributionPlot() {
 	const count = new Map();
 	const complexes = (window.complexome) ? window.complexome[0] : [];
@@ -84,7 +104,10 @@ function subunitDistributionPlot() {
 			.filter((value) => !value.includes("CPX-") && !value.includes("URS") && !value.includes("CHEBI:"));
 		count.set(subunits.length, mapGetWithDefault(count, subunits.length, 0) + 1);
 	}
-	return barPlot(Array.from(count.entries()).sort((a, b) => +a[0] - +b[0]),
+	return barPlot(
+		Array.from(count.entries())
+			.sort((a, b) => +a[0] - +b[0])
+			.map(([x, y]) => [x.toString(), y]),
 		{
 			hmargin: 30,
 			vmargin: 30,
@@ -93,12 +116,12 @@ function subunitDistributionPlot() {
 			xlabel: "Number of complexes",
 			ylabel: "↑ Frequency",
 			title: "Subunit distribution (proteins only)",
-			scale: d3.scaleLog,
 		}
 	)
 }
 
 function sharedSubunitsPlot() {
+	/** @type {Map<string, number>} */
 	const count = new Map();
 	const proteinObsCount = new Map();
 	const complexes = (window.complexome) ? window.complexome[0] : [];
@@ -125,15 +148,8 @@ function sharedSubunitsPlot() {
 			xlabel: "Number of protein subunits",
 			ylabel: "↑ Frequency",
 			title: "Shared protein subunits",
-			scale: d3.scaleLinear,
-			xticks: Array.from(count.keys()).sort(),
 		}
 	)
-}
-
-function drawComplexomePlots() {
-	document.getElementById("subunit-dist")?.replaceChildren(...subunitDistributionPlot());
-	document.getElementById("shared-subunits")?.replaceChildren(...sharedSubunitsPlot());
 }
 
 function coveragePlot() {
@@ -208,8 +224,58 @@ function volcano() {
 	});
 }
 
+/**
+ * @typedef SubunitInfo Data applicable to complex subunits (proteins).
+ * @property cid {string} The complex identifier
+ * @property name {string} The name of the complex
+ * @property subunit {string} The name of the subunit
+ * @property log2fc {number} The log2(Fold change)
+ * @property apvalue {number} The adjusted p-value
+ */
+
 function goTerms() {
-	return [];
+	const log2fc = /** @type {HTMLInputElement | null} */ (/** @type {unknown} */ document.getElementById("log2fc-threshold"));
+	const adjp = /** @type {HTMLInputElement | null} */ (/** @type {unknown} */ document.getElementById("adjp-threshold"));
+	const numTermsEl = /** @type {HTMLInputElement | null} */ (/** @type {unknown} */ document.getElementById("top-n-go-terms"));
+
+	const numTerms = parseInt(numTermsEl?.value ?? "10");
+
+	const log2fcThreshold = parseFloat(log2fc?.value ?? "0");
+	const adjpThreshold = parseFloat(adjp?.value ?? "0");
+
+	/** @type {Map<string, Set<string>>} */
+	const complexes = (window.complexome) ? window.complexome[0] : new Map();
+
+	/** @type {Map<string, string>} */
+	const names = (window.complexome) ? window.complexome[1] : new Map();
+
+	/** @type {Map<string, [number, number]>} */
+	const proteomics = (window.userdata) ? window.userdata : new Map();
+
+	/** @type {Set<string>} */
+	const perturbed = new Set();
+
+	/** @type {Array<[string, number]>} */
+	const counts = complexes.values().flatMap((/** @type {string} */ member) => {
+		const [measured_log2fc, measured_adjp] = proteomics.get(member) ?? [0, Infinity];
+		return [member, measured_log2fc, measured_adjp];
+	}).filter(([_, measured_log2fc, measured_adjp]) => (measured_log2fc >= log2fcThreshold) && (measured_adjp <= adjpThreshold))
+				.reduce((acc, [member, _x, _y]) => mapSetWithDefault(acc, member, (count) => count + 1, 1), new Map()).entries().toArray().sort((a, b) => +a[1] - +b[1]).slice(numTerms - 1);
+
+	return barPlot(counts, {
+		hmargin: 20,
+		vmargin: 20,
+		width: 600,
+		height: 400,
+		xlabel: "",
+		ylabel: "↑ Frequency",
+		title: "Most frequent GO terms associated with the perturbed complexes",
+	});
+}
+
+function drawComplexomePlots() {
+	document.getElementById("subunit-dist")?.replaceChildren(...subunitDistributionPlot());
+	document.getElementById("shared-subunits")?.replaceChildren(...sharedSubunitsPlot());
 }
 
 function drawPlots() {
@@ -243,7 +309,6 @@ function handleMessage(event) {
 }
 
 async function setup() {
-	console.log('setup() running...')
 	// Preload default species
 	const species = /** @type {HTMLInputElement | null} */ (/** @type {unknown} */ document.querySelector("#species"));
 	const userfile = /** @type {HTMLInputElement | null} */ (/** @type {unknown} */ document.querySelector("#proteomics-file"));
@@ -263,8 +328,6 @@ async function setup() {
 		console.error("Cannot complete setup: browser does not support web workers.");
 		throw Error("Cannot complete setup: browser does not support web workers.");
 	}
-
-
 }
 
 document.addEventListener("DOMContentLoaded", setup);

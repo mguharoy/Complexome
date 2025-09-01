@@ -119,28 +119,18 @@ function histogramPlot(data, options) {
 }
 
 /**
- * @typedef BarPlotOptions Configure how a barplot should be displayed.
- *
- * @property scale {(range?: Iterable<number>) => d3.ScaleContinuousNumeric<number, number>} A y-axis scale from d3-scale.
- * @property [xticks] {string[] | undefined} The x-axis tick values.
- */
-
-/**
- * @param {Array<[number, number]>} data - the data to plot.
- * @param {PlotOptions & BarPlotOptions} options - Configure the plot display.
+ * @param {Array<[string, number]>} data - the data to plot shaped as [x, y].
+ * @param {PlotOptions} options - Configure the plot display.
  * @returns {Node[]} The plot SVG node and the tooltip node.
  */
 function barPlot(data, options) {
 	const x = d3.scaleBand()
-		.domain(data.map((d) => d[0].toString()))
+		.domain(data.map((d) => d[0]))
 		.range([options.hmargin, options.width - options.hmargin])
 		.padding(0.1);
-	// const y = d3.scaleLinear()
-	// 			.domain([0, d3.max(data, (d) => d[1])])
-	// 			.range([options.height - options.margin, options.margin]);
-	const max = d3.max(data, (/** @type {[number, number]}  */d) => d[1]) ?? 0;
-	const y = options.scale()
-		.domain([1, max])
+	const max = d3.max(data, (/** @type {[unknown, number]}  */d) => d[1]) ?? 0;
+	const y = d3.scaleLinear()
+		.domain([0, max])
 		.range([options.height - options.vmargin, options.vmargin]);
 	const svg = d3.create("svg")
 		.attr("width", options.width)
@@ -148,24 +138,26 @@ function barPlot(data, options) {
 		.attr("viewBox", [0, 0, options.width, options.height])
 		.attr("style", "max-width: 100%; height: auto;");
 	const tooltip = d3.create("div").classed("tooltip", true);
+	const xaxis = d3.axisBottom(x);
+	/*
+	 *const xaxis = options.xticks ?
+	 *d3.axisBottom(x).tickValues(options.xticks) : */
+		//d3.axisBottom(x).tickValues(x.domain().filter((/** @type {unknown} */ _, /** @type {number} */ d) => (d + 1) % 5 === 0));
 
-	const xaxis = options.xticks ?
-		d3.axisBottom(x).tickValues(options.xticks) :
-		d3.axisBottom(x).tickValues(x.domain().filter((/** @type {unknown} */ _, /** @type {number} */ d) => (d + 1) % 5 === 0));
 
 	svg.append("g")
 		.selectAll()
 		.data(data)
 		.join("rect")
 		.attr("class", "bar")
-		.attr("x", (/** @type {[number, number]} */ d) => x(d[0].toString()) ?? "0")
-		.attr("y", (/** @type {[number, number]} */ d) => y(d[1]))
-		.attr("height", (/** @type {[number, number]} */ d) => { return y(1) - y(d[1]); })
+		.attr("x", (/** @type {[string, unknown]} */ d) => x(d[0]) ?? "0")
+		.attr("y", (/** @type {[unknown, number]} */ d) => y(d[1]))
+		.attr("height", (/** @type {[unknown, number]} */ d) => { return y(1) - y(d[1]); })
 		.attr("width", x.bandwidth())
-		.on("mouseover", (/** @type {unknown} */ _, /** @type {[number, number]} */ d) => {
+		.on("mouseover", (/** @type {unknown} */ _, /** @type {[string, number]} */ d) => {
 			tooltip.transition().duration(200).style("opacity", 1);
 			tooltip.html(`${d[1]}`)
-				.style("left", `${x(d[0].toString())}px`)
+				.style("left", `${x(d[0])}px`)
 				.style("top", `${y(Math.max(d[1], max / 10))}px`);
 		})
 		.on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
