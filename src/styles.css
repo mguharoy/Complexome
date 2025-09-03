@@ -76,6 +76,11 @@ form.app-parameters {
     gap: 1rem;
     box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
     padding: 0.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background-color: white;
+    width: 100%;
 }
 
 label.app-parameters-label {
