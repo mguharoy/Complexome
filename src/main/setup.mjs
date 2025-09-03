@@ -252,7 +252,7 @@ function volcano() {
     height: 400,
     xlabel: "log2 (FC)",
     ylabel: "-log10 (adjPval)",
-    title: "Volcano plot",
+    title: "",
     log2fcThreshold: parseFloat(log2fc?.value ?? "0"),
     adjpThreshold: parseFloat(adjp?.value ?? "0"),
   });

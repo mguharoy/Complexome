@@ -46,14 +46,14 @@
         <img src="/images/overview.jpg" alt="Complex Profiler context overview" width="1000" height="400">
       </figure>
 
-      <form>
+      <form class="app-parameters">
         <div>
-          <label for="proteomics-file">Select your proteomics file:</label>
+          <label class="app-parameters-label" for="proteomics-file">Select your proteomics file:</label>
           <input type="file" name="proteomics-file" id="proteomics-file">
         </div>
 
         <div>
-          <label for="species">Species</label>
+          <label class="app-parameters-label" for="species">Species</label>
           <select name="species" id="species" disabled>
             <option value="9606">Homo sapiens</option>
             <option value="10090">Mus musculus</option>
@@ -63,17 +63,17 @@
         </div>
 
         <div>
-          <label for="log2fc-threshold">log<sub>2</sub>(fold change)</label>
+          <label class="app-parameters-label" for="log2fc-threshold">log<sub>2</sub>(fold change)</label>
           <input type="number" value="1" name="log2fc-threshold" id="log2fc-threshold" disabled>
         </div>
 
         <div>
-          <label for="adjp-threshold">Adjusted P-value threshold</label>
+          <label class="app-parameters-label" for="adjp-threshold">Adjusted P-value threshold</label>
           <input type="number" value="0.05" name="adjp-threshold" id="adjp-threshold" disabled>
         </div>
 
         <div>
-          <label for="top-n-go-terms">Maximum number of Gene Ontology terms</label>
+          <label class="app-parameters-label" for="top-n-go-terms">Maximum number of Gene Ontology terms</label>
           <input type="number" value="10" name="top-n-go-terms" id="top-n-go-terms" disabled>
         </div>
       </form>

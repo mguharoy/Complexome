@@ -67,3 +67,21 @@ figure {
 .venn-label {
     pointer-events: none;
 }
+
+form.app-parameters {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    gap: 1rem;
+    box-shadow: rgba(100, 100, 111, 0.2) 0px 7px 29px 0px;
+    padding: 0.5rem;
+}
+
+label.app-parameters-label {
+    font-size: 0.7rem;
+    margin-left: 0rem;
+    margin-top: 0.7rem;
+    display: block;
+    transform: translateY(0rem);
+}
