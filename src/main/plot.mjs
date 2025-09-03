@@ -10,8 +10,7 @@ import { minmax, bisect } from "../shared/numeric.mjs";
 /**
  * @typedef PlotOptions Configure how the plot should be displayed
  *
- * @property hmargin {number} The horizonal margin between the edge and the plot (in px).
- * @property vmargin {number} The vertical margin between the edge and the plot (in px).
+ * @property margin {[number, number, number, number]} The margins: top, right, bottom, left
  * @property width {number} The total width of the plot image (in px).
  * @property height {number} The total height of the plot image (in px).
  * @property title {string} The title text.
@@ -34,88 +33,123 @@ import { minmax, bisect } from "../shared/numeric.mjs";
  * @returns {Node[]} - Return the plot and tooltip DOM nodes.
  */
 function histogramPlot(data, options) {
-	const [min, max] = minmax(data);
-	const numBins = (min === max) ? 1 : Math.min(data.length, Math.max(10, Math.floor(data.length / 160)));
+  const [mTop, mRight, mBottom, mLeft] = options.margin;
+  const [min, max] = minmax(data);
+  const numBins =
+    min === max
+      ? 1
+      : Math.min(data.length, Math.max(10, Math.floor(data.length / 160)));
 
-	const x = d3.scaleLinear()
-		.domain([0, 1.0])
-		.range([2 * options.hmargin, options.width - options.hmargin]);
+  const x = d3
+    .scaleLinear()
+    .domain([0, 1.0])
+    .range([mLeft, options.width - mRight]);
 
-	/** @type {Array<d3.Bin<number, number>>} */
-	const binnedData = d3.bin()
-		.value((/** @type {number} */ d) => d)
-		.domain([0, 1.0])
-		.thresholds(x.ticks(numBins))(data);
+  /** @type {Array<d3.Bin<number, number>>} */
+  const binnedData = d3
+    .bin()
+    .value((/** @type {number} */ d) => d)
+    .domain([0, 1.0])
+    .thresholds(x.ticks(numBins))(data);
 
-	/** @type {Interval[]} */
-	const bins = binnedData.reduce((/** @type {Array<Interval>} */ acc, /** @type {number[]} */ val) => {
-		if (val.length === 0) return acc;
-		const [bin_min, bin_max] = minmax(val);
-		return [...acc, {
-			from: acc[acc.length - 1]?.to ?? bin_min,
-			to: Math.max(bin_max, 0.01),
-			height: val.length,
-		}];
-	}, []);
+  /** @type {Interval[]} */
+  const bins = binnedData.reduce(
+    (/** @type {Array<Interval>} */ acc, /** @type {number[]} */ val) => {
+      if (val.length === 0) return acc;
+      const [bin_min, bin_max] = minmax(val);
+      return [
+        ...acc,
+        {
+          from: acc[acc.length - 1]?.to ?? bin_min,
+          to: Math.max(bin_max, 0.01),
+          height: val.length,
+        },
+      ];
+    },
+    [],
+  );
 
-	/** @type {number} */
-	const maxHeight = d3.max(bins, (/** @type {Interval} */ d) => d.height) ?? 0;
+  /** @type {number} */
+  const maxHeight = d3.max(bins, (/** @type {Interval} */ d) => d.height) ?? 0;
 
-	const y = d3.scaleLinear()
-		.domain([0, maxHeight])
-		.range([options.height - 2 * options.vmargin, options.vmargin])
+  const y = d3
+    .scaleLinear()
+    .domain([0, maxHeight])
+    .range([options.height - options.margin[2], options.margin[0]]);
 
-	const svg = d3.create("svg")
-		.attr("width", options.width)
-		.attr("height", options.height)
-		.attr("viewBox", [0, 0, options.width, options.height])
-		.attr("style", "max-width: 100%; height: auto;");
-	const tooltip = d3.create("div").classed("tooltip", true);
+  const svg = d3
+    .create("svg")
+    .attr("width", options.width)
+    .attr("height", options.height)
+    .attr("viewBox", [0, 0, options.width, options.height])
+    .attr("style", "max-width: 100%; height: auto;");
+  const tooltip = d3.create("div").classed("tooltip", true);
 
-	svg.append("g")
-		.attr("transform", `translate(0, ${options.height - options.vmargin - 10})`)
-		.call(d3.axisBottom(x))
-		.call((g) => g.append("text")
-			.attr("x", options.width / 2)
-			.attr("y", 25)
-			.attr("fill", "currentColor")
-			.attr("text-anchor", "middle")
-			.text(options.xlabel));
-	svg.append("g")
-		.attr("transform", `translate(${2 * options.hmargin}, ${options.vmargin - 10})`)
-		.call(d3.axisLeft(y))
-		.call((g) => g.append("text")
-			.attr("x", -options.hmargin)
-			.attr("y", options.vmargin - 10)
-			.attr("fill", "currentColor")
-			.attr("text-anchor", "start")
-			.text(options.ylabel));
-	svg.append("g")
-		.selectAll()
-		.data(bins)
-		.join("rect")
-		.attr("class", "bar")
-		.attr("x", 1)
-		.attr("transform", /** @param {Interval} d */(/** @type {Interval} */ d) => `translate(${x(d.from)}, ${y(d.height) + options.vmargin - 10})`)
-		.attr("width", (/** @type {Interval} */ d) => x(d.to) - x(d.from))
-		.attr("height", (/** @type {Interval} */ d) => options.height - y(d.height) - 2 * options.vmargin)
-		.on("mouseover", (/** @type {unknown} */ _, /** @type {Interval} */ d) => {
-			tooltip.transition().duration(200).style("opacity", 1);
-			tooltip.html(`${d.height}`)
-				.style("left", `${x(d.from)}px`)
-				.style("top", `${y(Math.max(d.height, maxHeight / 10)) + 10}px`);
-		})
-		.on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
+  svg
+    .append("g")
+    .selectAll()
+    .data(bins)
+    .join("rect")
+    .attr("class", "bar")
+    .attr("x", 1)
+    .attr(
+      "transform",
+      /** @param {Interval} d */ (/** @type {Interval} */ d) =>
+        `translate(${x(d.from)}, ${y(d.height)})`,
+    )
+    .attr("width", (/** @type {Interval} */ d) => x(d.to) - x(d.from))
+    .attr(
+      "height",
+      (/** @type {Interval} */ d) =>
+        options.height - y(d.height) - options.margin[0],
+    )
+    .on("mouseover", (/** @type {unknown} */ _, /** @type {Interval} */ d) => {
+      tooltip.transition().duration(200).style("opacity", 1);
+      tooltip
+        .html(`${d.height}`)
+        .style("left", `${x(d.from)}px`)
+        .style("top", `${y(Math.max(d.height, maxHeight / 10)) + 10}px`);
+    })
+    .on("mouseout", () =>
+      tooltip.transition().duration(200).style("opacity", 0),
+    );
+  svg
+    .append("g")
+    .attr("transform", `translate(0, ${options.height - mBottom})`)
+    .call(d3.axisBottom(x))
+    .call((g) =>
+      g
+        .append("text")
+        .attr("x", options.width / 2)
+        .attr("y", mBottom)
+        .attr("fill", "currentColor")
+        .attr("text-anchor", "middle")
+        .text(options.xlabel),
+    );
+  svg
+    .append("g")
+    .attr("transform", `translate(${mLeft}, 0)`)
+    .call(d3.axisLeft(y))
+    .call((g) =>
+      g
+        .append("text")
+        .attr("x", -mLeft)
+        .attr("y", mTop - 10)
+        .attr("fill", "currentColor")
+        .attr("text-anchor", "start")
+        .text(options.ylabel),
+    );
 
-	svg.append("text")
-		.attr("x", options.width / 2)
-		.attr("y", options.vmargin)
-		.attr("text-anchor", "middle")
-		.style("font-size", "1.5em")
-		.text(options.title);
+  svg
+    .append("text")
+    .attr("x", options.width / 2)
+    .attr("y", options.margin[0])
+    .attr("text-anchor", "middle")
+    .style("font-size", "1.5em")
+    .text(options.title);
 
-	const result = [svg.node(), tooltip.node()];
-	return (result[0] && result[1]) ? [result[0], result[1]] : [];
+  const result = [svg.node(), tooltip.node()];
+  return result[0] && result[1] ? [result[0], result[1]] : [];
 }
 
 /**
@@ -124,73 +158,94 @@ function histogramPlot(data, options) {
  * @returns {Node[]} The plot SVG node and the tooltip node.
  */
 function barPlot(data, options) {
-	const x = d3.scaleBand()
-		.domain(data.map((d) => d[0]))
-		.range([options.hmargin, options.width - options.hmargin])
-		.padding(0.1);
-	const max = d3.max(data, (/** @type {[unknown, number]}  */d) => d[1]) ?? 0;
-	const y = d3.scaleLinear()
-		.domain([0, max])
-		.range([options.height - options.vmargin, options.vmargin]);
-	const svg = d3.create("svg")
-		.attr("width", options.width)
-		.attr("height", options.height)
-		.attr("viewBox", [0, 0, options.width, options.height])
-		.attr("style", "max-width: 100%; height: auto;");
-	const tooltip = d3.create("div").classed("tooltip", true);
-	const xaxis = d3.axisBottom(x);
-	/*
-	 *const xaxis = options.xticks ?
-	 *d3.axisBottom(x).tickValues(options.xticks) : */
-		//d3.axisBottom(x).tickValues(x.domain().filter((/** @type {unknown} */ _, /** @type {number} */ d) => (d + 1) % 5 === 0));
+  const [mTop, mRight, mBottom, mLeft] = options.margin;
+  const x = d3
+    .scaleBand()
+    .domain(data.map((d) => d[0]))
+    .range([mLeft, options.width - mRight])
+    .padding(0.1);
+  const max = d3.max(data, (/** @type {[unknown, number]}  */ d) => d[1]) ?? 0;
+  const y = d3
+    .scaleLinear()
+    .domain([0, max])
+    .range([options.height - mBottom, mTop]);
+  const svg = d3
+    .create("svg")
+    .attr("width", options.width)
+    .attr("height", options.height)
+    .attr("viewBox", [0, 0, options.width, options.height])
+    .attr("style", "max-width: 100%; height: auto;");
+  const tooltip = d3.create("div").classed("tooltip", true);
 
+  svg
+    .append("g")
+    .selectAll()
+    .data(data)
+    .join("rect")
+    .attr("class", "bar")
+    .attr("x", (/** @type {[string, unknown]} */ d) => x(d[0]) ?? "0")
+    .attr("y", (/** @type {[unknown, number]} */ d) => y(d[1]))
+    .attr("height", (/** @type {[unknown, number]} */ d) => {
+      return y(0) - y(d[1]);
+    })
+    .attr("width", x.bandwidth())
+    .on(
+      "mouseover",
+      (/** @type {unknown} */ _, /** @type {[string, number]} */ d) => {
+        tooltip.transition().duration(200).style("opacity", 1);
+        tooltip
+          .html(`${d[1]}`)
+          .style("left", `${x(d[0])}px`)
+          .style("top", `${y(Math.max(d[1], max / 10))}px`);
+      },
+    )
+    .on("mouseout", () =>
+      tooltip.transition().duration(200).style("opacity", 0),
+    );
 
-	svg.append("g")
-		.selectAll()
-		.data(data)
-		.join("rect")
-		.attr("class", "bar")
-		.attr("x", (/** @type {[string, unknown]} */ d) => x(d[0]) ?? "0")
-		.attr("y", (/** @type {[unknown, number]} */ d) => y(d[1]))
-		.attr("height", (/** @type {[unknown, number]} */ d) => { return y(1) - y(d[1]); })
-		.attr("width", x.bandwidth())
-		.on("mouseover", (/** @type {unknown} */ _, /** @type {[string, number]} */ d) => {
-			tooltip.transition().duration(200).style("opacity", 1);
-			tooltip.html(`${d[1]}`)
-				.style("left", `${x(d[0])}px`)
-				.style("top", `${y(Math.max(d[1], max / 10))}px`);
-		})
-		.on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
+  svg
+    .append("g")
+    .attr("transform", `translate(0, ${options.height - mBottom})`)
+    .call(d3.axisBottom(x))
+    .selectAll("text")
+    .style("text-anchor", "end")
+    .attr("dx", "-.8em")
+    .attr("dy", ".15em")
+    .attr("transform", "rotate(-65)")
+    .call((g) =>
+      g
+        .append("text")
+        .attr("x", options.width / 2)
+        .attr("y", 25)
+        .attr("fill", "currentColor")
+        .attr("text-anchor", "middle")
+        .text(options.xlabel),
+    );
 
-	svg.append("g")
-		.attr("transform", `translate(0, ${options.height - options.vmargin})`)
-		.call(xaxis)
-		.call((g) => g.append("text")
-			.attr("x", options.width / 2)
-			.attr("y", 25)
-			.attr("fill", "currentColor")
-			.attr("text-anchor", "middle")
-			.text(options.xlabel));
+  svg
+    .append("g")
+    .attr("transform", `translate(${mLeft}, 0)`)
+    .call(d3.axisLeft(y))
+    .call((g) =>
+      g
+        .append("text")
+        .attr("x", -mLeft)
+        .attr("y", mTop - 10)
+        .attr("fill", "currentColor")
+        .attr("text-anchor", "start")
+        .text(options.ylabel),
+    );
 
-	svg.append("g")
-		.attr("transform", `translate(${options.hmargin}, 0)`)
-		.call(d3.axisLeft(y))
-		.call(g => g.append("text")
-			.attr("x", -options.hmargin)
-			.attr("y", options.vmargin - 10)
-			.attr("fill", "currentColor")
-			.attr("text-anchor", "start")
-			.text(options.ylabel));
+  svg
+    .append("text")
+    .attr("x", options.width / 2)
+    .attr("y", mTop)
+    .attr("text-anchor", "middle")
+    .style("font-size", "1.5em")
+    .text(options.title);
 
-	svg.append("text")
-		.attr("x", options.width / 2)
-		.attr("y", options.vmargin)
-		.attr("text-anchor", "middle")
-		.style("font-size", "1.5em")
-		.text(options.title);
-
-	const result = [svg.node(), tooltip.node()];
-	return (result[0] && result[1]) ? [result[0], result[1]] : [];
+  const result = [svg.node(), tooltip.node()];
+  return result[0] && result[1] ? [result[0], result[1]] : [];
 }
 
 /**
@@ -216,93 +271,131 @@ function barPlot(data, options) {
  * @returns {Node[]}
  */
 function vennPlot(data, options) {
-	const intersection = data.A.intersection(data.B);
-	const total = data.A.size + data.B.size;
-	const [Ab, aB, AB] = [data.A.size / total, data.B.size / total, intersection.size / total];
+  const [mTop, mRight, mBottom, mLeft] = options.margin;
+  const intersection = data.A.intersection(data.B);
+  const total = data.A.size + data.B.size;
+  const [Ab, aB, AB] = [
+    data.A.size / total,
+    data.B.size / total,
+    intersection.size / total,
+  ];
 
-	const [R, r] = [Math.sqrt(Ab / Math.PI), Math.sqrt(aB / Math.PI)];
-	const scale = (options.height - options.vmargin) / (2 * Math.max(R, r));
+  const [R, r] = [Math.sqrt(Ab / Math.PI), Math.sqrt(aB / Math.PI)];
+  const scale = Math.min(
+    (options.height - (mTop + mBottom)) / (2 * Math.max(R, r)),
+    (options.width - (mLeft + mRight)) / (2 * Math.max(R, r)),
+  );
 
-	/** @type {[number, number]} */
-	const bracket = AB < aB ? [R, 1] : [0.001, R];
-	const d = (intersection.size > 0) ? (data.B.isSubsetOf(data.A) ? Math.abs(R - r) + 0.0001 : bisect(R, r, AB, bracket)) : R + r + Math.max((r + R / 2), 0.2);
-	const xoff = (options.width / 2) - (d / 2 * scale);
+  /** @type {[number, number]} */
+  const bracket = AB < aB ? [R, 1] : [0.001, R];
+  const d =
+    intersection.size > 0
+      ? data.B.isSubsetOf(data.A)
+        ? Math.abs(R - r) + 0.0001
+        : bisect(R, r, AB, bracket)
+      : R + r + Math.max(r + R / 2, 0.2);
+  const xoff = options.width / 2 - (d / 2) * scale;
 
+  const xintReal = -(r * r - R * R - d * d) / (2 * d);
+  const xint = xintReal * scale + xoff;
+  const y1int =
+    Math.sqrt(R * R - xintReal * xintReal) * scale + options.height / 2;
+  const y2int =
+    -Math.sqrt(R * R - xintReal * xintReal) * scale + options.height / 2;
 
-	const xintReal = -(r * r - R * R - d * d) / (2 * d);
-	const xint = xintReal * scale + xoff;
-	const y1int = Math.sqrt(R * R - xintReal * xintReal) * scale + (options.height / 2);
-	const y2int = -Math.sqrt(R * R - xintReal * xintReal) * scale + (options.height / 2);
+  const svg = d3
+    .create("svg")
+    .attr("width", options.width)
+    .attr("height", options.height)
+    .attr("viewBox", [0, 0, options.width, options.height])
+    .attr("style", "max-width: 100%; height: auto;");
+  const tooltip = d3.create("div").classed("tooltip", true);
 
-	const svg = d3.create("svg")
-		.attr("width", options.width)
-		.attr("height", options.height)
-		.attr("viewBox", [0, 0, options.width, options.height])
-		.attr("style", "max-width: 100%; height: auto;");
-	const tooltip = d3.create("div").classed("tooltip", true);
+  svg
+    .append("path")
+    .attr("class", "complexome-venn")
+    .attr(
+      "d",
+      `M ${xint} ${y2int} A ${R * scale} ${R * scale} 0 1 0 ${xint} ${y1int} A ${r * scale} ${r * scale} 0 0 1 ${xint} ${y2int}Z`,
+    )
+    .on("mouseenter", (/** @type {MouseEvent} */ event) => {
+      const [mx, my] = d3.pointer(event);
+      tooltip.transition().duration(200).style("opacity", 1);
+      tooltip
+        .html((data.A.size - intersection.size).toString())
+        .style("left", `${mx}px`)
+        .style("top", `${my - 22}px`);
+    })
+    .on("mousemove", (/** @type {MouseEvent} */ event) => {
+      const [mx, my] = d3.pointer(event);
+      tooltip.style("left", `${mx}px`).style("top", `${my - 22}px`);
+    })
+    .on("mouseout", () =>
+      tooltip.transition().duration(200).style("opacity", 0),
+    );
+  svg
+    .append("path")
+    .attr("class", "intersection-venn")
+    .attr(
+      "d",
+      `M ${xint} ${y2int} A ${r * scale} ${r * scale} 0 0 0 ${xint} ${y1int} A ${R * scale} ${R * scale} 0 0 0 ${xint} ${y2int}Z`,
+    )
+    .on("mouseenter", (/** @type {MouseEvent} */ event) => {
+      const [mx, my] = d3.pointer(event);
+      tooltip.transition().duration(200).style("opacity", 1);
+      tooltip
+        .html(intersection.size.toString())
+        .style("left", `${mx}px`)
+        .style("top", `${my - 22}px`);
+    })
+    .on("mousemove", (/** @type {MouseEvent} */ event) => {
+      const [mx, my] = d3.pointer(event);
+      tooltip.style("left", `${mx}px`).style("top", `${my - 22}px`);
+    })
+    .on("mouseout", () =>
+      tooltip.transition().duration(200).style("opacity", 0),
+    );
+  svg
+    .append("path")
+    .attr("class", "proteomics-venn")
+    .attr(
+      "d",
+      `M ${xint} ${y1int} A ${r * scale} ${r * scale} 0 1 0 ${xint} ${y2int} A ${R * scale} ${R * scale} 0 0 1 ${xint} ${y1int}Z`,
+    )
+    .on("mouseenter", (/** @type {MouseEvent} */ event) => {
+      const [mx, my] = d3.pointer(event);
+      tooltip.transition().duration(200).style("opacity", 1);
+      tooltip
+        .html((data.B.size - intersection.size).toString())
+        .style("left", `${mx}px`)
+        .style("top", `${my - 22}px`);
+    })
+    .on("mousemove", (/** @type {MouseEvent} */ event) => {
+      const [mx, my] = d3.pointer(event);
+      tooltip.style("left", `${mx}px`).style("top", `${my - 22}px`);
+    })
+    .on("mouseout", () =>
+      tooltip.transition().duration(200).style("opacity", 0),
+    );
+  svg
+    .append("text")
+    .attr("class", "venn-label")
+    .attr("x", options.width / 3)
+    .attr("y", (4 * options.height) / 5)
+    .attr("fill", "currentColor")
+    .attr("text-anchor", "end")
+    .text(options.alabel);
+  svg
+    .append("text")
+    .attr("class", "venn-label")
+    .attr("x", (2 * options.width) / 3)
+    .attr("y", (4 * options.height) / 5)
+    .attr("fill", "currentColor")
+    .attr("text-anchor", "start")
+    .text(options.blabel);
 
-	svg.append("path")
-		.attr("class", "complexome-venn")
-		.attr("d", `M ${xint} ${y2int} A ${R * scale} ${R * scale} 0 1 0 ${xint} ${y1int} A ${r * scale} ${r * scale} 0 0 1 ${xint} ${y2int}Z`)
-		.on("mouseenter", (/** @type {MouseEvent} */ event) => {
-			const [mx, my] = d3.pointer(event);
-			tooltip.transition().duration(200).style("opacity", 1);
-			tooltip.html((data.A.size - intersection.size).toString())
-				.style("left", `${mx}px`)
-				.style("top", `${my - 22}px`);
-		})
-		.on("mousemove", (/** @type {MouseEvent} */ event) => {
-			const [mx, my] = d3.pointer(event);
-			tooltip.style("left", `${mx}px`).style("top", `${my - 22}px`);
-		})
-		.on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
-	svg.append("path")
-		.attr("class", "intersection-venn")
-		.attr("d", `M ${xint} ${y2int} A ${r * scale} ${r * scale} 0 0 0 ${xint} ${y1int} A ${R * scale} ${R * scale} 0 0 0 ${xint} ${y2int}Z`)
-		.on("mouseenter", (/** @type {MouseEvent} */ event) => {
-			const [mx, my] = d3.pointer(event);
-			tooltip.transition().duration(200).style("opacity", 1);
-			tooltip.html((intersection.size).toString())
-				.style("left", `${mx}px`)
-				.style("top", `${my - 22}px`);
-		})
-		.on("mousemove", (/** @type {MouseEvent} */ event) => {
-			const [mx, my] = d3.pointer(event);
-			tooltip.style("left", `${mx}px`).style("top", `${my - 22}px`);
-		})
-		.on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
-	svg.append("path")
-		.attr("class", "proteomics-venn")
-		.attr("d", `M ${xint} ${y1int} A ${r * scale} ${r * scale} 0 1 0 ${xint} ${y2int} A ${R * scale} ${R * scale} 0 0 1 ${xint} ${y1int}Z`)
-		.on("mouseenter", (/** @type {MouseEvent} */ event) => {
-			const [mx, my] = d3.pointer(event);
-			tooltip.transition().duration(200).style("opacity", 1);
-			tooltip.html((data.B.size - intersection.size).toString())
-				.style("left", `${mx}px`)
-				.style("top", `${my - 22}px`);
-		})
-		.on("mousemove", (/** @type {MouseEvent} */ event) => {
-			const [mx, my] = d3.pointer(event);
-			tooltip.style("left", `${mx}px`).style("top", `${my - 22}px`);
-		})
-		.on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
-	svg.append("text")
-		.attr("class", "venn-label")
-		.attr("x", options.width / 3)
-		.attr("y", 4 * options.height / 5)
-		.attr("fill", "currentColor")
-		.attr("text-anchor", "end")
-		.text(options.alabel);
-	svg.append("text")
-		.attr("class", "venn-label")
-		.attr("x", 2 * options.width / 3)
-		.attr("y", 4 * options.height / 5)
-		.attr("fill", "currentColor")
-		.attr("text-anchor", "start")
-		.text(options.blabel);
-
-	const result = [svg.node(), tooltip.node()];
-	return (result[0] && result[1]) ? [result[0], result[1]] : [];
+  const result = [svg.node(), tooltip.node()];
+  return result[0] && result[1] ? [result[0], result[1]] : [];
 }
 
 /**
@@ -329,134 +422,172 @@ function vennPlot(data, options) {
  * @returns {Node[]} - Return the plot and the tooltip DOM nodes.
  */
 function volcanoPlot(data, options) {
-	const [xmin, xmax] = minmax(data, (/** @type {VolcanoDatum} */ datum) => datum.adjPval);
-	const [ymin, ymax] = minmax(data, (/** @type {VolcanoDatum} */ datum) => datum.log2fc);
-	const xScale = d3.scaleLinear()
-				.domain([ymin, ymax])
-				.range([options.hmargin, options.width - 2*options.hmargin])
-				.nice();
-	const yScale = d3.scaleLinear()
-				.domain([-Math.log10(xmin), -Math.log10(xmax)])
-				.range([options.vmargin, options.height - options.vmargin])
-				.nice();
+  const [mTop, mRight, mBottom, mLeft] = options.margin;
+  const [xmin, xmax] = minmax(
+    data,
+    (/** @type {VolcanoDatum} */ datum) => datum.adjPval,
+  );
+  const [ymin, ymax] = minmax(
+    data,
+    (/** @type {VolcanoDatum} */ datum) => datum.log2fc,
+  );
+  const xScale = d3
+    .scaleLinear()
+    .domain([Math.min(-options.log2fcThreshold, ymin), ymax])
+    .range([mLeft, options.width - mRight])
+    .nice();
+  const yScale = d3
+    .scaleLinear()
+    .domain([-Math.log10(xmin), Math.min(-Math.log10(xmax), 0.0)])
+    .range([mTop, options.height - mBottom])
+    .nice();
 
-	/** @type {[number, number]} */
-	const [countBlue, countRed] = data.reduce((acc, datum) => {
-		if (-Math.log10(datum.adjPval) > -Math.log10(options.adjpThreshold)) {
-			if (datum.log2fc > options.log2fcThreshold) {
-				return [acc[0], acc[1] + 1];
-			} else if (datum.log2fc < -options.log2fcThreshold) {
-				return [acc[0] + 1, acc[1]];
-			}
-		}
-		return acc;
+  /** @type {[number, number]} */
+  const [countBlue, countRed] = data.reduce(
+    (acc, datum) => {
+      if (-Math.log10(datum.adjPval) > -Math.log10(options.adjpThreshold)) {
+        if (datum.log2fc > options.log2fcThreshold) {
+          return [acc[0], acc[1] + 1];
+        } else if (datum.log2fc < -options.log2fcThreshold) {
+          return [acc[0] + 1, acc[1]];
+        }
+      }
+      return acc;
+    },
+    [0, 0],
+  );
 
-	}, [0, 0]);
+  /** @type {(log2fc: number, pval: number) => string} */
+  const colour = (log2fc, pval) => {
+    if (-Math.log10(pval) > -Math.log10(options.adjpThreshold)) {
+      if (log2fc > options.log2fcThreshold) {
+        return "#cc0000";
+      } else if (log2fc < -options.log2fcThreshold) {
+        return "#003399";
+      } else {
+        return "#8a8a8a";
+      }
+    } else {
+      return "#8a8a8a";
+    }
+  };
 
-	/** @type {(log2fc: number, pval: number) => string} */
-	const colour = (log2fc, pval) => {
-		if (-Math.log10(pval) > -Math.log10(options.adjpThreshold)) {
-			if (log2fc > options.log2fcThreshold) {
-				return "#cc0000";
-			} else if (log2fc < -options.log2fcThreshold) {
-				return "#003399";
-			} else {
-				return "#8a8a8a";
-			}
-		} else {
-			return "#8a8a8a";
-		}
-	};
-	
-	const svg = d3.create("svg")
-		.attr("width", options.width)
-		.attr("height", options.height)
-		.attr("viewBox", [0, 0, options.width, options.height])
-		.attr("style", "max-width: 100%; height: auto;");
-	const tooltip = d3.create("div").classed("tooltip", true);
+  const svg = d3
+    .create("svg")
+    .attr("width", options.width)
+    .attr("height", options.height)
+    .attr("viewBox", [0, 0, options.width, options.height])
+    .attr("style", "max-width: 100%; height: auto;");
+  const tooltip = d3.create("div").classed("tooltip", true);
 
-	svg.append("g")
-		.attr("transform", `translate(${options.hmargin}, ${options.height - options.vmargin})`)
-		.call(d3.axisBottom(xScale))
-		.call((g) => g.append("text")
-					.attr("x", options.width / 2)
-					.attr("y", 25)
-					.attr("fill", "currentColor")
-					.attr("text-anchor", "middle")
-					.text(options.xlabel));
-	svg.append("g")
-		.attr("transform", `translate(${2 * options.hmargin}, 0)`)
-		.call(d3.axisLeft(yScale))
-		.call((g) => g.append("text")
-					.attr("x", -options.hmargin)
-					.attr("y", options.vmargin / 2)
-					.attr("fill", "currentColor")
-					.attr("text-anchor", "start")
-					.text(options.ylabel));
+  svg
+    .append("g")
+    .attr("transform", `translate(0, ${options.height - mBottom})`)
+    .call(d3.axisBottom(xScale))
+    .call((g) =>
+      g
+        .append("text")
+        .attr("x", options.width / 2)
+        .attr("y", 25)
+        .attr("fill", "currentColor")
+        .attr("text-anchor", "middle")
+        .text(options.xlabel),
+    );
+  svg
+    .append("g")
+    .attr("transform", `translate(${mLeft}, 0)`)
+    .call(d3.axisLeft(yScale))
+    .call((g) =>
+      g
+        .append("text")
+        .attr("x", -mLeft)
+        .attr("y", 15)
+        .attr("fill", "currentColor")
+        .attr("text-anchor", "start")
+        .text(options.ylabel),
+    );
 
-	svg.append("g")
-		.selectAll()
-		.data(data)
-		.join("circle")
-		.attr("cx", (datum) => xScale(datum.log2fc) + options.hmargin)
-		.attr("cy", (datum) => yScale(-Math.log10(datum.adjPval)))
-		.attr("r", 3)
-		.attr("opacity", 0.5)
-		.attr("fill", (datum) => colour(datum.log2fc, datum.adjPval))
-		.on("mouseenter", (/** @type {MouseEvent} */ event, /** @type {VolcanoDatum} */ datum) => {
-			const [mx, my] = d3.pointer(event);
-			tooltip.transition().duration(200).style("opacity", 1);
-			tooltip.html(`${datum.name}<br/>log2(FC): ${datum.log2fc.toFixed(3)}<br/>-log10(pval): ${-Math.log10(datum.adjPval).toFixed(3)}`)
-				.style("left", `${mx + 5}px`)
-				.style("top", `${my - 46}px`);
-		})
-		.on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
+  svg
+    .append("g")
+    .selectAll()
+    .data(data)
+    .join("circle")
+    .attr("cx", (datum) => xScale(datum.log2fc))
+    .attr("cy", (datum) => yScale(-Math.log10(datum.adjPval)))
+    .attr("r", 3)
+    .attr("opacity", 0.5)
+    .attr("fill", (datum) => colour(datum.log2fc, datum.adjPval))
+    .on(
+      "mouseenter",
+      (/** @type {MouseEvent} */ event, /** @type {VolcanoDatum} */ datum) => {
+        const [mx, my] = d3.pointer(event);
+        tooltip.transition().duration(200).style("opacity", 1);
+        tooltip
+          .html(
+            `${datum.name}<br/>log2(FC): ${datum.log2fc.toFixed(3)}<br/>-log10(pval): ${-Math.log10(datum.adjPval).toFixed(3)}`,
+          )
+          .style("left", `${mx + 5}px`)
+          .style("top", `${my - 46}px`);
+      },
+    )
+    .on("mouseout", () =>
+      tooltip.transition().duration(200).style("opacity", 0),
+    );
 
+  // The threshold markers
+  const yThresh = yScale(-Math.log10(options.adjpThreshold));
+  svg
+    .append("polyline")
+    .attr(
+      "points",
+      `${mLeft},${yThresh} ${xScale(-options.log2fcThreshold)},${yThresh} ${xScale(-options.log2fcThreshold)},${mTop}`,
+    )
+    .attr("fill", "none")
+    .attr("stroke", "red")
+    .attr("stroke-width", "1px")
+    .attr("stroke-dasharray", "4");
 
-	// The threshold markers
-	const yThresh = yScale(-Math.log10(options.adjpThreshold));
-	svg.append("polyline")
-		.attr("points", `${2 * options.hmargin},${yThresh} ${xScale(-options.log2fcThreshold) + options.hmargin},${yThresh} ${xScale(-options.log2fcThreshold) + options.hmargin},${options.vmargin + 10}`)
-		.attr("fill", "none")
-		.attr("stroke", "red")
-		.attr("stroke-width", "1px")
-		.attr("stroke-dasharray", "4");
+  svg
+    .append("polyline")
+    .attr(
+      "points",
+      `${options.width - mRight},${yThresh} ${xScale(options.log2fcThreshold)},${yThresh} ${xScale(options.log2fcThreshold)},${mTop}`,
+    )
+    .attr("fill", "none")
+    .attr("stroke", "red")
+    .attr("stroke-width", "1px")
+    .attr("stroke-dasharray", "4");
 
-	svg.append("polyline")
-		.attr("points", `${options.width - options.hmargin},${yThresh} ${xScale(options.log2fcThreshold) + options.hmargin},${yThresh} ${xScale(options.log2fcThreshold) + options.hmargin},${options.vmargin + 10}`)
-		.attr("fill", "none")
-		.attr("stroke", "red")
-		.attr("stroke-width", "1px")
-		.attr("stroke-dasharray", "4");
+  // Count labels
+  svg
+    .append("text")
+    .attr("x", options.width / 10)
+    .attr("y", options.height / 5)
+    .attr("text-anchor", "start")
+    .attr("font-size", "0.5em")
+    .attr("font-weight", "bold")
+    .attr("fill", "#003399")
+    .text(`${countBlue}`);
+  svg
+    .append("text")
+    .attr("x", (9 * options.width) / 10)
+    .attr("y", options.height / 5)
+    .attr("text-anchor", "end")
+    .attr("font-size", "0.5em")
+    .attr("font-weight", "bold")
+    .attr("fill", "#cc0000")
+    .text(`${countRed}`);
 
-	// Count labels
-	svg.append("text")
-		.attr("x", 2 * options.hmargin + 10)
-		.attr("y", 2 * options.vmargin)
-		.attr("text-anchor", "start")
-		.attr("font-size", "0.5em")
-		.attr("font-weight", "bold")
-		.attr("fill", "#003399")
-		.text(`${countBlue}`);
-	svg.append("text")
-		.attr("x", options.width - options.hmargin)
-		.attr("y", 2 * options.vmargin)
-		.attr("text-anchor", "end")
-		.attr("font-size", "0.5em")
-		.attr("font-weight", "bold")
-		.attr("fill", "#cc0000")
-		.text(`${countRed}`);
+  svg
+    .append("text")
+    .attr("x", options.width / 2)
+    .attr("y", mTop)
+    .attr("text-anchor", "middle")
+    .style("font-size", "1.5em")
+    .text(options.title);
 
-	svg.append("text")
-		.attr("x", options.width / 2)
-		.attr("y", options.vmargin)
-		.attr("text-anchor", "middle")
-		.style("font-size", "1.5em")
-		.text(options.title);
-
-	const result = [svg.node(), tooltip.node()];
-	return (result[0] && result[1]) ? [result[0], result[1]] : [];
+  const result = [svg.node(), tooltip.node()];
+  return result[0] && result[1] ? [result[0], result[1]] : [];
 }
-
 
 export { barPlot, histogramPlot, vennPlot, volcanoPlot };
