@@ -189,7 +189,7 @@ function coveragePlot() {
   }
 
   return histogramPlot(Array.from(coverage.values()), {
-    margin: [30, 10, 30, 30],
+    margin: [30, 10, 30, 50],
     width: 600,
     height: 400,
     xlabel: "Proteomics coverage",
