@@ -90,3 +90,31 @@ label.app-parameters-label {
     display: block;
     transform: translateY(0rem);
 }
+
+div.data-table-container {
+    flex-basis: 100%;
+}
+
+div.data-table-container table {
+    width: 100%;
+    overflow-x: scroll;
+    border-collapse: collapse;
+}
+
+th {
+    font-size: 0.8rem !important;
+    padding: 3px !important;
+    vertical-align: top;
+    border: 1px solid hsla(0, 0%, 50%, .1);
+}
+
+td {
+    font-size: 0.6rem !important;
+    padding: 3px !important;
+    vertical-align: top;
+    border: 1px solid hsla(0, 0%, 50%, .1);
+}
+
+tbody > tr:hover {
+    background-color: #e8e8e8;
+}

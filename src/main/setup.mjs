@@ -5,16 +5,28 @@
  * And the service worker to cache everything.
  */
 
-import { barPlot, histogramPlot, vennPlot, volcanoPlot } from "./plot.mjs";
+import {
+  barPlot,
+  histogramPlot,
+  table,
+  vennPlot,
+  volcanoPlot,
+} from "./plot.mjs";
+
+/**
+ * @import { TableRow } from "./plot.mjs";
+ */
 
 /**
  * Handle changes to the user supplied proteoimcs file.
- * @param {Event & {currentTarget: HTMLInputElement & EventTarget}} event
  * @param {Worker} csv - A reference to the worker thread for parsing user data.
  */
-async function onProteomicsFile(event, csv) {
-  if (event.currentTarget.files && event.currentTarget.files.length === 1) {
-    const files = event.currentTarget.files;
+async function onProteomicsFile(csv) {
+  const userfile = /** @type {HTMLInputElement | null} */ (
+    /** @type {unknown} */ document.querySelector("#proteomics-file")
+  );
+  const files = userfile?.files;
+  if (files && files.length === 1) {
     const text = await files[0]?.text();
     if (text) {
       csv.postMessage({ op: "csv", data: text });
@@ -41,7 +53,89 @@ async function registerServiceWorker() {
   }
 }
 
-function enableControls() {
+/**
+ * @typedef Mapping
+ * @property from {string}
+ * @property to {string}
+ */
+
+/**
+ * @param {Subunit[]} perturbedSubunits
+ * @returns {Promise<Map<string, string>>}
+ */
+async function fetchGeneNameMapping(perturbedSubunits) {
+  const results = new Map();
+  let haveResults = false;
+  let retries = 0;
+  const ids = new Set(perturbedSubunits.map((info) => info.subunit));
+  const request = new Request("https://rest.uniprot.org/idmapping/run", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+    },
+    body: new URLSearchParams({
+      from: "UniProtKB_AC-ID",
+      to: "Gene_Name",
+      ids: ids.values().toArray().join(","),
+    }),
+  });
+  const response = await fetch(request);
+  const job = await response.json();
+  /** @type {string | undefined} */
+  let resultsURL = undefined;
+
+  let totalResults = 0;
+  if ("jobId" in job) {
+    while (!haveResults && retries < 20) {
+      const status = await fetch(
+        `https://rest.uniprot.org/idmapping/status/${job.jobId}`,
+      );
+      const headers = status.headers;
+      const statusResponse = await status.json();
+      if ("results" in statusResponse) {
+        resultsURL = (headers.get("Link") ?? "")
+          .split(";")[0]
+          ?.replace(/^<|>$/g, "");
+        statusResponse.results.forEach((/** @type {Mapping} */ mapping) =>
+          results.set(mapping.from, mapping.to),
+        );
+        totalResults = parseInt(headers.get("X-Total-Results") ?? "0");
+        haveResults = true;
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      retries++;
+    }
+  }
+
+  const maxExpected = Math.ceil(ids.size / 25) + 10;
+  let counter = 0;
+
+  while (
+    haveResults &&
+    resultsURL &&
+    results.size < totalResults &&
+    counter < maxExpected
+  ) {
+    const resultsResponse = await fetch(resultsURL);
+    const mappings = await resultsResponse.json();
+    resultsURL = (resultsResponse.headers.get("Link") ?? "")
+      .split(";")[0]
+      ?.replace(/^<|>$/g, "");
+    mappings.results.forEach((/** @type {Mapping} */ mapping) =>
+      results.set(mapping.from, mapping.to),
+    );
+    counter++;
+  }
+
+  return results;
+}
+
+/**
+ * Enable or disable controls.
+ * @param {boolean} enable
+ */
+function controls(enable) {
   const species = document.getElementById("species");
 
   const log2fc = document.getElementById("log2fc-threshold");
@@ -49,16 +143,16 @@ function enableControls() {
   const goterms = document.getElementById("top-n-go-terms");
 
   if (species && "disabled" in species) {
-    species.disabled = false;
+    species.disabled = !enable;
   }
   if (log2fc && "disabled" in log2fc) {
-    log2fc.disabled = false;
+    log2fc.disabled = !enable;
   }
   if (adjp && "disabled" in adjp) {
-    adjp.disabled = false;
+    adjp.disabled = !enable;
   }
   if (goterms && "disabled" in goterms) {
-    goterms.disabled = false;
+    goterms.disabled = !enable;
   }
 }
 
@@ -261,6 +355,7 @@ function volcano() {
 /**
  * @typedef Subunit
  * @property name {string}
+ * @property subunit {string}
  * @property log2fc {number}
  * @property apvalue {number}
  */
@@ -306,7 +401,12 @@ function goTerms() {
         0,
         Infinity,
       ];
-      return { name: cpxid, log2fc: measured_log2fc, apvalue: measured_adjp };
+      return {
+        name: cpxid,
+        subunit: member,
+        log2fc: measured_log2fc,
+        apvalue: measured_adjp,
+      };
     })
     .filter(
       (/** @type {Subunit} */ subunit) =>
@@ -349,6 +449,186 @@ function goTerms() {
   });
 }
 
+/**
+ * @typedef Perturbation
+ * @property perturbation {string}
+ * @property score {number}
+ * @property normalizedScore {number}
+ */
+
+/**
+ * @param {string} other
+ * @param {number} log2fc
+ * @returns {string}
+ */
+function whatPerturbation(other, log2fc) {
+  let self = "";
+  switch (Math.sign(log2fc)) {
+    case -1:
+      self = "Down-regulated";
+      break;
+    case 1:
+      self = "Up-regulated";
+      break;
+    case 0:
+      self = "Altered";
+      break;
+  }
+  if (self === "Unknown") {
+    return other;
+  } else if (other === "Unknown" || other === self) {
+    return self;
+  } else {
+    return "Altered";
+  }
+}
+
+async function dataTable() {
+  const log2fc = /** @type {HTMLInputElement | null} */ (
+    /** @type {unknown} */ document.getElementById("log2fc-threshold")
+  );
+  const adjp = /** @type {HTMLInputElement | null} */ (
+    /** @type {unknown} */ document.getElementById("adjp-threshold")
+  );
+
+  const log2fcThreshold = parseFloat(log2fc?.value ?? "0");
+  const adjpThreshold = parseFloat(adjp?.value ?? "0");
+
+  /** @type {Map<string, Set<string>>} */
+  const complexes = window.complexome ? window.complexome[0] : new Map();
+
+  /** @type {Map<string, string>} */
+  const complexNames = window.complexome ? window.complexome[1] : new Map();
+
+  /** @type {Map<string, [number, number]>} */
+  const proteomics = window.userdata ? window.userdata : new Map();
+
+  /** @type {Subunit[]} */
+  const perturbedSubunits = complexes
+    .entries()
+    .flatMap(
+      /** @type {([cpxid, members]: [string, Set<string>]) => Iterator<[string, string]>} */ ([
+        cpxid,
+        members,
+      ]) => members.values().map((member) => [cpxid, member]),
+    )
+		.map(([cpxid, member]) => {
+      const [measured_log2fc, measured_adjp] = proteomics.get(member) ?? [
+        0,
+        Infinity,
+      ];
+      return {
+        name: cpxid,
+        subunit: member,
+        log2fc: measured_log2fc,
+        apvalue: measured_adjp,
+      };
+    })
+    .filter(
+      (/** @type {Subunit} */ subunit) =>
+        Math.abs(subunit.log2fc) >= log2fcThreshold &&
+				subunit.apvalue <= adjpThreshold,
+    )
+    .toArray();
+
+  const perturbedIDs = new Set(
+    perturbedSubunits.map((subunit) => subunit.name),
+  );
+
+  const geneNames = await fetchGeneNameMapping(perturbedSubunits);
+  const coverage = new Map(
+    complexes.entries().map(([cid, members]) => {
+      const [num_subunits, measured_subunits] = members
+        .values()
+        .filter(
+          (subunit) =>
+            !subunit.includes("CPX-") &&
+            !subunit.includes("URS") &&
+            !subunit.includes("CHEBI:"),
+        )
+        .map((subunit) =>
+          subunit.includes("-") || subunit.includes("_")
+            ? subunit.slice(0, 6)
+            : subunit,
+        )
+        .reduce(
+          (acc, subunit) => [
+            acc[0] + 1,
+            proteomics.has(subunit) ? acc[1] + 1 : acc[1],
+          ],
+          [0, 0],
+        );
+      return [cid, measured_subunits / num_subunits];
+    }),
+  );
+
+  /** @type {Map<string, Perturbation>} */
+  const perturbations = new Map(
+    complexes
+      .entries()
+      .filter(([cid, _]) => perturbedIDs.has(cid))
+      .map(([cid, members]) => {
+        const [regulationScore, count, perturbation] = members
+          .values()
+          .filter(
+            (subunit) =>
+              !subunit.includes("CPX-") &&
+              !subunit.includes("URS") &&
+              !subunit.includes("CHEBI:"),
+          )
+          .map((subunit) =>
+            subunit.includes("-") || subunit.includes("_")
+              ? subunit.slice(0, 6)
+              : subunit,
+          )
+          .reduce(
+            (acc, subunit) => {
+							const proteomicsData = proteomics.get(subunit);
+							if (proteomicsData) {
+								const [log2fc, adjp] = proteomicsData;
+								return [
+									acc[0] + Math.abs(log2fc * -Math.log10(adjp)),
+									acc[1] + 1,
+									whatPerturbation(acc[2], log2fc),
+								];
+							} else {
+								return acc;
+							}
+            },
+            [0, 0, "Unknown"],
+          );
+        return [
+          cid,
+          {
+            perturbation,
+            score: regulationScore,
+            normalizedScore: regulationScore / count,
+          },
+        ];
+      }),
+  );
+
+  /** @type {TableRow[]} */
+  const tableRows = perturbedSubunits.map((/** @type {Subunit} */ subunit) => {
+    const perturbation = perturbations.get(subunit.name);
+    return {
+      cid: subunit.name,
+      name: complexNames.get(subunit.name) ?? "",
+      coverage: coverage.get(subunit.name) ?? 0.0,
+      type: perturbation?.perturbation ?? "",
+      score: perturbation?.score ?? 0.0,
+      normalizedScore: perturbation?.normalizedScore ?? 0.0,
+      subunitID: subunit.subunit,
+      geneName: geneNames.get(subunit.subunit) ?? "",
+      log2fc: subunit.log2fc,
+      adbpval: subunit.apvalue,
+    };
+  })
+	.sort((a, b) => +b.coverage - +a.coverage);
+
+  return table(tableRows);
+}
+
 function drawComplexomePlots() {
   document
     .getElementById("subunit-dist")
@@ -358,32 +638,44 @@ function drawComplexomePlots() {
     ?.replaceChildren(...sharedSubunitsPlot());
 }
 
-function drawPlots() {
+async function drawPlots() {
   document
     .getElementById("proteomics-coverage")
     ?.replaceChildren(...coveragePlot());
   document.getElementById("venn")?.replaceChildren(...vennDiagram());
   document.getElementById("volcano")?.replaceChildren(...volcano());
   document.getElementById("goterms")?.replaceChildren(...goTerms());
+  document
+    .getElementById("data-table")
+    ?.replaceChildren(...(await dataTable()));
+}
+
+function clearPlots() {
+  document.getElementById("subunit-dist")?.replaceChildren();
+  document.getElementById("shared-subunits")?.replaceChildren();
+  document.getElementById("proteomics-coverage")?.replaceChildren();
+  document.getElementById("venn")?.replaceChildren();
+  document.getElementById("volcano")?.replaceChildren();
+  document.getElementById("goterms")?.replaceChildren();
+  document.getElementById("data-table")?.replaceChildren();
 }
 
 /**
  * Handle messages from the worker thread.
  * @param {MessageEvent} event
  */
-function handleMessage(event) {
+async function handleMessage(event) {
   if ("userdata" in event.data) {
-    enableControls();
+    controls(true);
     window.userdata = event.data["userdata"];
     if (window.complexome) {
-      drawPlots();
+      await drawPlots();
     }
   } else if ("complex" in event.data) {
-    console.log(`Got data from complex: ${event.data["complex"]}`);
     window.complexome = event.data["complex"];
     drawComplexomePlots();
     if (window.userdata) {
-      drawPlots();
+      await drawPlots();
     }
   } else {
     console.error("Unknown message:", event.data);
@@ -391,6 +683,8 @@ function handleMessage(event) {
 }
 
 async function setup() {
+  controls(false);
+  clearPlots();
   const species = /** @type {HTMLInputElement | null} */ (
     /** @type {unknown} */ document.querySelector("#species")
   );
@@ -405,17 +699,15 @@ async function setup() {
   if (window.Worker) {
     const csvWorker = new Worker("/worker/parser.mjs", { type: "module" });
     csvWorker.onmessage = handleMessage;
+
     // Handle proteomics file changes
-    userfile?.addEventListener("change", (event) =>
-      onProteomicsFile(
-        /** @type {Event & {currentTarget: HTMLInputElement & EventTarget}} */ (
-          /** @type {unknown} */ event
-        ),
-        csvWorker,
-      ),
-    );
+    userfile?.addEventListener("change", () => onProteomicsFile(csvWorker));
+
     // Preload cache with the default species
     csvWorker.postMessage({ op: "getcomplex", data: species?.value });
+
+    // If the user has already selected a file, load the data.
+    await onProteomicsFile(csvWorker);
   } else {
     console.error(
       "Cannot complete setup: browser does not support web workers.",

@@ -5,7 +5,21 @@
 
 import * as d3 from "https://esm.run/d3";
 
-import { minmax, bisect } from "../shared/numeric.mjs";
+import { minmax, bisect, identity } from "../shared/numeric.mjs";
+
+/**
+ * @typedef TableRow A row from the data table.
+ * @property cid {string}
+ * @property name {string}
+ * @property coverage {number}
+ * @property type {string}
+ * @property score {number}
+ * @property normalizedScore {number}
+ * @property subunitID {string}
+ * @property geneName {string}
+ * @property log2fc {number}
+ * @property adbpval {number}
+ */
 
 /**
  * @typedef PlotOptions Configure how the plot should be displayed
@@ -590,4 +604,60 @@ function volcanoPlot(data, options) {
   return result[0] && result[1] ? [result[0], result[1]] : [];
 }
 
-export { barPlot, histogramPlot, vennPlot, volcanoPlot };
+/**
+ * Create a table.
+ * @param rows {TableRow[]}
+ * @returns {Node[]}
+ */
+function table(rows) {
+  const thead = d3.create("thead");
+  const tbody = d3.create("tbody");
+  thead
+    .append("tr")
+    .selectAll("th")
+    .data([
+      "Complex ID",
+      "Complex Name",
+      "Coverage",
+      "Perturbation Type",
+      "Perturbation Score",
+      "Normalized Score",
+      "Subunit ID",
+      "Gene Name",
+      "log2(FC)",
+      "Adj. p-value",
+    ])
+    .enter()
+    .append("th")
+    .attr("tabindex", (_, i) => i)
+    .attr("role", "button")
+    .attr("aria-label", "Sort column")
+    .text(identity);
+
+  const rowEls = tbody.selectAll("tr").data(rows).enter().append("tr");
+
+  rowEls
+    .selectAll("td")
+    .data((row) => Object.values(row))
+    .enter()
+    .append("td")
+		.style("text-align", (data) => {
+			if (typeof data === "string") {
+				return "left";
+			} else {
+				return "right";
+			}
+		})
+    .text((data) => {
+			if (typeof data === "string") {
+				return data;
+			} else {
+				return data.toFixed(3).replace(/\.?0+$/, "");
+			}
+		});
+
+  const result = [thead.node(), tbody.node()];
+  return result[0] && result[1] ? [result[0], result[1]] : [];
+}
+
+export { barPlot, histogramPlot, vennPlot, volcanoPlot, table };
