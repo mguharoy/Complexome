@@ -605,13 +605,51 @@ function volcanoPlot(data, options) {
 }
 
 /**
+ * Render data rows for a table.
+ * @param body {d3.Selection<HTMLTableSectionElement, undefined, null, undefined>}
+ * @param data {TableRow[]}
+ */
+function renderTableData(body, data) {
+	const rows = body.selectAll("tr").data(data).enter().append("tr");
+
+  rows
+    .selectAll("td")
+    .data((/** @type {TableRow} */ row) => Object.entries(row))
+    .enter()
+    .append("td")
+		.style("text-align", (/** @type {[string, string | number]} */ [_, data]) => {
+			if (typeof data === "string") {
+				return "left";
+			} else {
+				return "right";
+			}
+		})
+    .text(([key, data]) => {
+			if (key === "coverage" && (typeof data === "number")) {
+				return `${(100 * data).toFixed(1)}%`;
+			}
+			if (typeof data === "string") {
+				return data;
+			} else {
+				return data.toFixed(3).replace(/\.?0+$/, "");
+			}
+		});
+}
+
+/**
  * Create a table.
  * @param rows {TableRow[]}
  * @returns {Node[]}
  */
 function table(rows) {
-  const thead = d3.create("thead");
-  const tbody = d3.create("tbody");
+	/** @type {[number, TableRow[]][]} */
+	const pages = d3.groups(rows, (_, index) => Math.floor(index / 25))
+				.map(([key, group]) => [key + 1, group]);
+
+	const heading = d3.create("h4").text("Details of the perturbed complexes.");
+	const table = d3.create("table").attr("id", "data-table");
+  const thead = table.append("thead");
+
   thead
     .append("tr")
     .selectAll("th")
@@ -634,30 +672,33 @@ function table(rows) {
     .attr("aria-label", "Sort column")
     .text(identity);
 
-  const rowEls = tbody.selectAll("tr").data(rows).enter().append("tr");
+	const tbody = table.append("tbody");
+	renderTableData(tbody, pages[0]?.[1] ?? []);
 
-  rowEls
-    .selectAll("td")
-    .data((row) => Object.values(row))
-    .enter()
-    .append("td")
-		.style("text-align", (data) => {
-			if (typeof data === "string") {
-				return "left";
-			} else {
-				return "right";
-			}
+	const paginationContainer = d3.create("div")
+				.attr("class", "table-pagination-container");
+	paginationContainer
+		.selectAll()
+		.data(pages)
+		.join("span")
+		.style("border", (d, i) => i === 0 ? "1px solid grey" : "none")
+	  .on("click", (event, [index, page]) => {
+			tbody.node()?.replaceChildren();
+			renderTableData(tbody, page);
+			d3
+				.selectAll("div.table-pagination-container > span")
+				.style("border", "none");
+			d3
+				.select(`div.table-pagination-container > span:nth-child(${index})`)
+				.style("border", "1px solid grey");
 		})
-    .text((data) => {
-			if (typeof data === "string") {
-				return data;
-			} else {
-				return data.toFixed(3).replace(/\.?0+$/, "");
-			}
-		});
+		.text(([page, _]) => page.toString());
 
-  const result = [thead.node(), tbody.node()];
-  return result[0] && result[1] ? [result[0], result[1]] : [];
+  const result = [heading.node(), table.node(), paginationContainer.node()];
+	if (result.every((x) => x !== null)) {
+		return result;
+	}
+  return [];
 }
 
 export { barPlot, histogramPlot, vennPlot, volcanoPlot, table };

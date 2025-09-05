@@ -646,7 +646,7 @@ async function drawPlots() {
   document.getElementById("volcano")?.replaceChildren(...volcano());
   document.getElementById("goterms")?.replaceChildren(...goTerms());
   document
-    .getElementById("data-table")
+    .getElementById("perturbed-complexes-table")
     ?.replaceChildren(...(await dataTable()));
 }
 
