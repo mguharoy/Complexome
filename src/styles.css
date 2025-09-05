@@ -142,3 +142,9 @@ div.table-pagination-container > span {
 div.table-pagination-container > span:hover {
     background-color: hsla(0, 0%, 50%, .1);
 }
+
+iframe#my-complexome-viewer {
+    contain: style layout paint;
+    border: 1px solid;
+    display: none;
+}

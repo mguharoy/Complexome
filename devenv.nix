@@ -5,7 +5,7 @@
   env.GREET = "devenv";
 
   # https://devenv.sh/packages/
-  packages = [ pkgs.qsv pkgs.eslint pkgs.prettier ];
+  packages = [ pkgs.qsv pkgs.eslint pkgs.prettier pkgs.nodePackages.serve ];
 
   # https://devenv.sh/languages/
   languages.typescript.enable = true;

@@ -608,8 +608,9 @@ function volcanoPlot(data, options) {
  * Render data rows for a table.
  * @param body {d3.Selection<HTMLTableSectionElement, undefined, null, undefined>}
  * @param data {TableRow[]}
+ * @param {(cid: string) => void} viewComplex
  */
-function renderTableData(body, data) {
+function renderTableData(body, data, viewComplex) {
 	const rows = body.selectAll("tr").data(data).enter().append("tr");
 
   rows
@@ -633,15 +634,22 @@ function renderTableData(body, data) {
 			} else {
 				return data.toFixed(3).replace(/\.?0+$/, "");
 			}
+  });
+
+	rows
+		.selectAll("td:first-child")
+		.on("click", (_, [_cid, cid]) => {
+			viewComplex(cid);
 		});
 }
 
 /**
  * Create a table.
- * @param rows {TableRow[]}
+ * @param {TableRow[]} rows
+ * @param {(cid: string) => void} viewComplex
  * @returns {Node[]}
  */
-function table(rows) {
+function table(rows, viewComplex) {
 	/** @type {[number, TableRow[]][]} */
 	const pages = d3.groups(rows, (_, index) => Math.floor(index / 25))
 				.map(([key, group]) => [key + 1, group]);
@@ -673,7 +681,7 @@ function table(rows) {
     .text(identity);
 
 	const tbody = table.append("tbody");
-	renderTableData(tbody, pages[0]?.[1] ?? []);
+	renderTableData(tbody, pages[0]?.[1] ?? [], viewComplex);
 
 	const paginationContainer = d3.create("div")
 				.attr("class", "table-pagination-container");
@@ -681,10 +689,10 @@ function table(rows) {
 		.selectAll()
 		.data(pages)
 		.join("span")
-		.style("border", (d, i) => i === 0 ? "1px solid grey" : "none")
-	  .on("click", (event, [index, page]) => {
+		.style("border", (_, index) => index === 0 ? "1px solid grey" : "none")
+	  .on("click", (_, [index, page]) => {
 			tbody.node()?.replaceChildren();
-			renderTableData(tbody, page);
+			renderTableData(tbody, page, viewComplex);
 			d3
 				.selectAll("div.table-pagination-container > span")
 				.style("border", "none");

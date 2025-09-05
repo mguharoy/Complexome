@@ -483,7 +483,11 @@ function whatPerturbation(other, log2fc) {
   }
 }
 
-async function dataTable() {
+/**
+ * Display the data table.
+ * @param {(cid: string) => Promise<void>} viewComplex - Render a complex viewer.
+ */
+async function dataTable(viewComplex) {
   const log2fc = /** @type {HTMLInputElement | null} */ (
     /** @type {unknown} */ document.getElementById("log2fc-threshold")
   );
@@ -626,7 +630,23 @@ async function dataTable() {
   })
 	.sort((a, b) => +b.coverage - +a.coverage);
 
-  return table(tableRows);
+  return table(tableRows, viewComplex);
+}
+
+/**
+ * Display the Complexome Viewer.
+ * @param {string} cid - The Complexome complex identifier.
+ */
+function viewComplexome(cid) {
+	const iframe = /** @type {HTMLIFrameElement | null} */ (/** @type {unknown} */ document.getElementById("my-complexome-viewer"));
+	const proteomics = window.userdata ? window.userdata : new Map();
+	const log2fc = proteomics.entries().map(([protein, [log2fc, _]]) => ({protein, log2fc})).toArray();
+	//const parentEl = document.getElementById("my-complexome-viewer");
+	//console.log(`Posting message to ${iframe.contentWindow}`);
+	if (iframe) {
+		iframe.style.display = "block";
+		iframe.contentWindow?.postMessage({cid, log2fc}, "*");
+	}
 }
 
 function drawComplexomePlots() {
@@ -647,7 +667,7 @@ async function drawPlots() {
   document.getElementById("goterms")?.replaceChildren(...goTerms());
   document
     .getElementById("perturbed-complexes-table")
-    ?.replaceChildren(...(await dataTable()));
+    ?.replaceChildren(...(await dataTable(viewComplexome)));
 }
 
 function clearPlots() {
@@ -717,3 +737,10 @@ async function setup() {
 }
 
 document.addEventListener("DOMContentLoaded", setup);
+document.querySelector("#save-image").addEventListener("click", () => {
+	const iframe = /** @type {HTMLIFrameElement | null} */ (/** @type {unknown} */ document.getElementById("my-complexome-viewer"));
+	if (iframe) {
+		iframe.style.display = "block";
+		iframe.contentWindow?.postMessage({"screenshot": true}, "*");
+	}
+})
