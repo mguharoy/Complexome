@@ -628,16 +628,22 @@ function renderTableData(body, data, viewComplex) {
         }
       },
     )
-    .text(([key, data]) => {
-      if (key === "coverage" && typeof data === "number") {
-        return `${(100 * data).toFixed(1)}%`;
-      }
-      if (typeof data === "string") {
+		.html(([key, data]) => {
+			if (key === "coverage" && typeof data === "number") {
+				return `${(100 * data).toFixed(1)}%`;
+			} else if (key === "cid" && typeof data === "string") {
+				return `<span class="cpx-id-col">${data}</span>`;
+			} else if (key === "subunitID" && typeof data === "string") {
+				return `<a href="https://www.uniprot.org/uniprotkb/${data}/entry" target="_blank">${data}</a>`;
+			} else if (key === "geneName" && typeof data === "string") {
+				return `<a href="https://www.genenames.org/tools/search/#!/?query=${data}" target="_blank">${data}</a>`;
+			}
+			if (typeof data === "string") {
         return data;
       } else {
         return data.toFixed(3).replace(/\.?0+$/, "");
       }
-    });
+		});
 
   rows.selectAll("td:first-child").on("click", (_, [_cid, cid]) => {
     viewComplex(cid);

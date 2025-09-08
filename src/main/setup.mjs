@@ -637,6 +637,9 @@ function viewComplexome(cid) {
   const nameHeader = /** @type {HTMLElement | null} */ (
     /** @type {unknown} */ document.getElementById("complex-name")
   );
+	const complexomeLink = /** @type {HTMLAnchorElement | null} */ (
+    /** @type {unknown} */ document.getElementById("complexome-link")
+  );
   const saveImageButton = /** @type {HTMLButtonElement} */ (
     /** @type {unknown} */ document.getElementById("save-image")
   );
@@ -660,6 +663,11 @@ function viewComplexome(cid) {
   if (nameHeader) {
     nameHeader.innerText = cid;
   }
+
+	if (complexomeLink) {
+		complexomeLink.style.display = "block";
+		complexomeLink.href = `https://www.ebi.ac.uk/complexportal/complex/${cid}`
+	}
 }
 
 function drawComplexomePlots() {

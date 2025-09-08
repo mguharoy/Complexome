@@ -159,3 +159,12 @@ figure.output-figure {
     align-items: center;
     gap: 0.5rem;
 }
+
+span.cpx-id-col {
+    color: #0000ee;
+    text-decoration: underline;
+}
+
+a#complexome-link {
+    display: none;
+}
