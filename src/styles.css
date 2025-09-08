@@ -148,3 +148,14 @@ iframe#my-complexome-viewer {
     border: 1px solid;
     display: none;
 }
+
+button#save-image {
+    display: none;
+}
+
+figure.output-figure {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}

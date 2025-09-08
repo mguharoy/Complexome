@@ -59,6 +59,30 @@
             <option value="10090">Mus musculus</option>
             <option value="559292">Saccharomyces cerevisiae</option>
             <option value="83333">Escherichia coli strain K12</option>
+            <option value="7227">Drosothila melanogaster</option>
+            <option value="3702">Arabidopsis thailiana</option>,
+            <option value="6239">Caenorhabditis elegans</option>,
+            <option value="10116">Rattus norvegicus</option>,
+            <option value="284812">Schizosaccharomyces pombe</option>,
+            <option value="9031">Gallus gallus</option>,
+            <option value="9913">Bos taurus</option>,
+            <option value="2697049">Severe acute respitory syndrome coronavirus 2</option>,
+            <option value="8732">Crotalus durissus terrificus</option>,
+            <option value="694009">Severe acute respiratory syndrome coronavirus</option>,
+            <option value="1263720">Middle East respiratory syndrome-related coronavirus</option>,
+            <option value="7955">Danio rerio</option>,
+            <option value="9615">Canis lupus familiaris</option>,
+            <option value="1235996">Human betacoronavirus 2c EMC/2012</option>,
+            <option value="8355">Xenopus laevis</option>,
+            <option value="9986">Oryctolagus cuniculus</option>,
+            <option value="9823">Sus scrofa</option>,
+            <option value="562">Escherichia coli</option>,
+            <option value="6523">Lymnaea stagnalis</option>,
+            <option value="9940">Ovis aries</option>,
+            <option value="208964">Pseudomonas aeruginosa strain ATCC 15692</option>,
+            <option value="7787">Tetronarce californica</option>,
+            <option value="7788">Torpedo marmorata</option>,
+            <option value="243277">Vibrio cholerae serotype O1 strain ATCC 39315 / El Tor Inaba N16961</option>
           </select>
         </div>
 
@@ -79,15 +103,15 @@
       </form>
       <div id="results">
         <div class="tooltip"></div>
-        <figure id="subunit-dist"></figure>
-        <figure id="shared-subunits"></figure>
-        <figure id="proteomics-coverage"></figure>
-        <figure id="venn"></figure>
-        <figure id="volcano"></figure>
-        <figure id="goterms"></figure>
+        <figure class="output-figure" id="subunit-dist"></figure>
+        <figure class="output-figure" id="shared-subunits"></figure>
+        <figure class="output-figure" id="proteomics-coverage"></figure>
+        <figure class="output-figure" id="venn"></figure>
+        <figure class="output-figure" id="volcano"></figure>
+        <figure class="output-figure" id="goterms"></figure>
         <div id="perturbed-complexes-table" class="data-table-container"></div>
-        <figure>
-          <iframe id="my-complexome-viewer" src="/cv.html" sandbox="allow-scripts" width="815" height="935" loading="lazy"></iframe>
+        <figure class="output-figure">
+          <iframe id="my-complexome-viewer" src="/cv.html" sandbox="allow-scripts" width="815" height="935"></iframe>
           <button id="save-image">Save image</button>
         </figure>
       </div>

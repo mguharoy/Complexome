@@ -125,7 +125,7 @@ self.onmessage = async (event) => {
       const complexid = data;
       console.log(`Worker now requesting ${complexid}`);
       if (self.cache.has(complexid)) {
-        self.postMessage(self.cache.get(complexid));
+        self.postMessage({ id: complexid, complex: self.cache.get(complexid) });
       } else {
         const response = await fetch(
           `https://ftp.ebi.ac.uk/pub/databases/intact/complex/current/complextab/${complexid}.tsv`,

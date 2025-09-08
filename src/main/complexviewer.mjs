@@ -1,6 +1,6 @@
 import { App } from "https://cdn.skypack.dev/pin/complexviewer@v2.2.4-mcKlBbXJL2XODAKhG35J/mode=imports,min/optimized/complexviewer.js";
 import * as d3 from "https://esm.run/d3";
-import { toPng } from 'https://esm.run/@exercism/html-to-image';
+import { toPng } from "https://esm.run/@exercism/html-to-image";
 
 function mkScale(protein_log2fc) {
   // Get the range of log2fc values.
@@ -49,15 +49,18 @@ export async function draw(el, complex_id, protein_log2fc, width, height) {
   const data = await res.json();
   complexviewer.readMIJSON(data);
 
-	//when we have a "setComponents", map label to protein IDs
-	const names = new Map(); // Map<string, string[]>;
-	data.data.forEach((entry) => {
-		if (entry.setComponents && entry.label) {
-			names.set(entry.label, entry.setComponents.map((component) => component.identifier.id));
-		} else if (entry.identifier) {
-			return names.set(entry.label, [entry.identifier.id]);
-		}
-	});
+  //when we have a "setComponents", map label to protein IDs
+  const names = new Map(); // Map<string, string[]>;
+  data.data.forEach((entry) => {
+    if (entry.setComponents && entry.label) {
+      names.set(
+        entry.label,
+        entry.setComponents.map((component) => component.identifier.id),
+      );
+    } else if (entry.identifier) {
+      return names.set(entry.label, [entry.identifier.id]);
+    }
+  });
 
   const allText = Array.from(el.querySelectorAll("svg text.label"));
   const [, , colour] = mkScale(protein_log2fc);
@@ -67,8 +70,8 @@ export async function draw(el, complex_id, protein_log2fc, width, height) {
         .filter((el) => el.textContent.startsWith(entry.label))
         .forEach((el) => {
           const parent = el.parentNode;
-          const log2fc = protein_log2fc.find(
-            (protein) => names.get(entry.label).includes(protein.protein)
+          const log2fc = protein_log2fc.find((protein) =>
+            names.get(entry.label).includes(protein.protein),
           )?.log2fc;
           const children = Array.from(parent.childNodes);
           // remove the groups
@@ -139,32 +142,50 @@ export function drawScale(protein_log2fc) {
 
 /**
  * @param {string} complexid
- * @param {{protein: string, log2fc: number}[]} log2fc 
+ * @param {{protein: string, log2fc: number}[]} log2fc
  */
 async function show(complexid, log2fc) {
-	const parent = document.getElementById("my-complexome-viewer");
-	if (parent) {
-		parent.replaceChildren();
-		await draw(parent, complexid, log2fc, 800, 800);
-		parent.appendChild(drawScale(log2fc));
-	} else {
-		console.error("Could not find parent");
-	}
+  const spinner = /** @type {HTMLSpanElement | null} */ (
+    /** @type {unknown} */ document.querySelector("span.loading-spinner")
+  );
+  const container = document.getElementById("my-complexome-viewer");
+  console.log(`Showing ${complexid} in ${container}`);
+  if (container) {
+    container.replaceChildren();
+    if (spinner) {
+      spinner.style.display = "inline-block";
+    }
+    console.log("starting draw");
+    const start = performance.now();
+    await draw(container, complexid, log2fc, 800, 800);
+    const end = performance.now() - start;
+    console.log("Finished draw. Took ", end);
+    if (spinner) {
+      spinner.style.display = "none";
+    }
+    container.appendChild(drawScale(log2fc));
+  } else {
+    console.error("Could not find parent");
+  }
 }
 
 window.addEventListener("message", async (event) => {
-	if ("cid" in event.data && "log2fc" in event.data) {
-		console.log("Ok, trying to show");
-		window.cid = event.data.cid;
-		await show(event.data.cid, event.data.log2fc);
-	} else if ("screenshot" in event.data) {
-		const pngUrl = await toPng(document.querySelector("html"));
-		let a = document.createElement("a");
-		a.setAttribute("download", `${window.cid}.png`);
-		a.setAttribute("href", pngUrl);
-		a.click();
-	} else {
-		console.log(event);
-	}
+  if ("cid" in event.data && "log2fc" in event.data) {
+    console.log("Ok, trying to show");
+    window.cid = event.data.cid;
+    await show(event.data.cid, event.data.log2fc);
+  } else if ("screenshot" in event.data) {
+    console.log("screenshot");
+    const pngUrl = await toPng(document.querySelector("html"));
+    parent.postMessage(
+      { action: "download", data: { name: window.cid, url: pngUrl } },
+      document.baseURI,
+    );
+    console.log({
+      action: "download",
+      data: { name: window.cid, url: pngUrl },
+    });
+  } else {
+    console.log(event);
+  }
 });
-

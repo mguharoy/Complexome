@@ -136,8 +136,6 @@ async function fetchGeneNameMapping(perturbedSubunits) {
  * @param {boolean} enable
  */
 function controls(enable) {
-  const species = document.getElementById("species");
-
   const log2fc = document.getElementById("log2fc-threshold");
   const adjp = document.getElementById("adjp-threshold");
   const goterms = document.getElementById("top-n-go-terms");
@@ -485,7 +483,7 @@ function whatPerturbation(other, log2fc) {
 
 /**
  * Display the data table.
- * @param {(cid: string) => Promise<void>} viewComplex - Render a complex viewer.
+ * @param {(cid: string) => void} viewComplex - Render a complex viewer.
  */
 async function dataTable(viewComplex) {
   const log2fc = /** @type {HTMLInputElement | null} */ (
@@ -516,7 +514,7 @@ async function dataTable(viewComplex) {
         members,
       ]) => members.values().map((member) => [cpxid, member]),
     )
-		.map(([cpxid, member]) => {
+    .map(([cpxid, member]) => {
       const [measured_log2fc, measured_adjp] = proteomics.get(member) ?? [
         0,
         Infinity,
@@ -531,7 +529,7 @@ async function dataTable(viewComplex) {
     .filter(
       (/** @type {Subunit} */ subunit) =>
         Math.abs(subunit.log2fc) >= log2fcThreshold &&
-				subunit.apvalue <= adjpThreshold,
+        subunit.apvalue <= adjpThreshold,
     )
     .toArray();
 
@@ -587,17 +585,17 @@ async function dataTable(viewComplex) {
           )
           .reduce(
             (acc, subunit) => {
-							const proteomicsData = proteomics.get(subunit);
-							if (proteomicsData) {
-								const [log2fc, adjp] = proteomicsData;
-								return [
-									acc[0] + Math.abs(log2fc * -Math.log10(adjp)),
-									acc[1] + 1,
-									whatPerturbation(acc[2], log2fc),
-								];
-							} else {
-								return acc;
-							}
+              const proteomicsData = proteomics.get(subunit);
+              if (proteomicsData) {
+                const [log2fc, adjp] = proteomicsData;
+                return [
+                  acc[0] + Math.abs(log2fc * -Math.log10(adjp)),
+                  acc[1] + 1,
+                  whatPerturbation(acc[2], log2fc),
+                ];
+              } else {
+                return acc;
+              }
             },
             [0, 0, "Unknown"],
           );
@@ -613,22 +611,23 @@ async function dataTable(viewComplex) {
   );
 
   /** @type {TableRow[]} */
-  const tableRows = perturbedSubunits.map((/** @type {Subunit} */ subunit) => {
-    const perturbation = perturbations.get(subunit.name);
-    return {
-      cid: subunit.name,
-      name: complexNames.get(subunit.name) ?? "",
-      coverage: coverage.get(subunit.name) ?? 0.0,
-      type: perturbation?.perturbation ?? "",
-      score: perturbation?.score ?? 0.0,
-      normalizedScore: perturbation?.normalizedScore ?? 0.0,
-      subunitID: subunit.subunit,
-      geneName: geneNames.get(subunit.subunit) ?? "",
-      log2fc: subunit.log2fc,
-      adbpval: subunit.apvalue,
-    };
-  })
-	.sort((a, b) => +b.coverage - +a.coverage);
+  const tableRows = perturbedSubunits
+    .map((/** @type {Subunit} */ subunit) => {
+      const perturbation = perturbations.get(subunit.name);
+      return {
+        cid: subunit.name,
+        name: complexNames.get(subunit.name) ?? "",
+        coverage: coverage.get(subunit.name) ?? 0.0,
+        type: perturbation?.perturbation ?? "",
+        score: perturbation?.score ?? 0.0,
+        normalizedScore: perturbation?.normalizedScore ?? 0.0,
+        subunitID: subunit.subunit,
+        geneName: geneNames.get(subunit.subunit) ?? "",
+        log2fc: subunit.log2fc,
+        adbpval: subunit.apvalue,
+      };
+    })
+    .sort((a, b) => +b.coverage - +a.coverage);
 
   return table(tableRows, viewComplex);
 }
@@ -638,15 +637,25 @@ async function dataTable(viewComplex) {
  * @param {string} cid - The Complexome complex identifier.
  */
 function viewComplexome(cid) {
-	const iframe = /** @type {HTMLIFrameElement | null} */ (/** @type {unknown} */ document.getElementById("my-complexome-viewer"));
-	const proteomics = window.userdata ? window.userdata : new Map();
-	const log2fc = proteomics.entries().map(([protein, [log2fc, _]]) => ({protein, log2fc})).toArray();
-	//const parentEl = document.getElementById("my-complexome-viewer");
-	//console.log(`Posting message to ${iframe.contentWindow}`);
-	if (iframe) {
-		iframe.style.display = "block";
-		iframe.contentWindow?.postMessage({cid, log2fc}, "*");
-	}
+  const saveImageButton = /** @type {HTMLButtonElement} */ (
+    /** @type {unknown} */ document.getElementById("save-image")
+  );
+  const iframe = /** @type {HTMLIFrameElement | null} */ (
+    /** @type {unknown} */ document.getElementById("my-complexome-viewer")
+  );
+  const proteomics = window.userdata ? window.userdata : new Map();
+  const log2fc = proteomics
+    .entries()
+    .map(([protein, [log2fc, _]]) => ({ protein, log2fc }))
+    .toArray();
+  if (iframe) {
+    iframe.style.display = "block";
+    iframe.contentWindow?.postMessage({ cid, log2fc }, "*");
+  }
+
+  if (saveImageButton) {
+    saveImageButton.style.display = "block";
+  }
 }
 
 function drawComplexomePlots() {
@@ -723,6 +732,11 @@ async function setup() {
     // Handle proteomics file changes
     userfile?.addEventListener("change", () => onProteomicsFile(csvWorker));
 
+    // Handle species changes
+    species?.addEventListener("change", () =>
+      csvWorker.postMessage({ op: "getcomplex", data: species?.value }),
+    );
+
     // Preload cache with the default species
     csvWorker.postMessage({ op: "getcomplex", data: species?.value });
 
@@ -737,10 +751,28 @@ async function setup() {
 }
 
 document.addEventListener("DOMContentLoaded", setup);
-document.querySelector("#save-image").addEventListener("click", () => {
-	const iframe = /** @type {HTMLIFrameElement | null} */ (/** @type {unknown} */ document.getElementById("my-complexome-viewer"));
-	if (iframe) {
-		iframe.style.display = "block";
-		iframe.contentWindow?.postMessage({"screenshot": true}, "*");
-	}
-})
+document.querySelector("#save-image")?.addEventListener("click", () => {
+  const iframe = /** @type {HTMLIFrameElement | null} */ (
+    /** @type {unknown} */ document.getElementById("my-complexome-viewer")
+  );
+  if (iframe) {
+    iframe.style.display = "block";
+    iframe.contentWindow?.postMessage({ screenshot: true }, "*");
+  }
+});
+
+window.addEventListener("message", (event) => {
+  console.log(event);
+  const { action, data } = event.data;
+  console.log(action, data);
+  switch (action) {
+    case "download":
+      const { name, url } = data;
+      let a = document.createElement("a");
+      a.setAttribute("download", `${name}.png`);
+      a.setAttribute("href", url);
+      console.log("About to download...");
+      a.click();
+      break;
+  }
+});

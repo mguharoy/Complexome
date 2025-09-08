@@ -611,36 +611,37 @@ function volcanoPlot(data, options) {
  * @param {(cid: string) => void} viewComplex
  */
 function renderTableData(body, data, viewComplex) {
-	const rows = body.selectAll("tr").data(data).enter().append("tr");
+  const rows = body.selectAll("tr").data(data).enter().append("tr");
 
   rows
     .selectAll("td")
     .data((/** @type {TableRow} */ row) => Object.entries(row))
     .enter()
     .append("td")
-		.style("text-align", (/** @type {[string, string | number]} */ [_, data]) => {
-			if (typeof data === "string") {
-				return "left";
-			} else {
-				return "right";
-			}
-		})
+    .style(
+      "text-align",
+      (/** @type {[string, string | number]} */ [_, data]) => {
+        if (typeof data === "string") {
+          return "left";
+        } else {
+          return "right";
+        }
+      },
+    )
     .text(([key, data]) => {
-			if (key === "coverage" && (typeof data === "number")) {
-				return `${(100 * data).toFixed(1)}%`;
-			}
-			if (typeof data === "string") {
-				return data;
-			} else {
-				return data.toFixed(3).replace(/\.?0+$/, "");
-			}
-  });
+      if (key === "coverage" && typeof data === "number") {
+        return `${(100 * data).toFixed(1)}%`;
+      }
+      if (typeof data === "string") {
+        return data;
+      } else {
+        return data.toFixed(3).replace(/\.?0+$/, "");
+      }
+    });
 
-	rows
-		.selectAll("td:first-child")
-		.on("click", (_, [_cid, cid]) => {
-			viewComplex(cid);
-		});
+  rows.selectAll("td:first-child").on("click", (_, [_cid, cid]) => {
+    viewComplex(cid);
+  });
 }
 
 /**
@@ -650,12 +651,13 @@ function renderTableData(body, data, viewComplex) {
  * @returns {Node[]}
  */
 function table(rows, viewComplex) {
-	/** @type {[number, TableRow[]][]} */
-	const pages = d3.groups(rows, (_, index) => Math.floor(index / 25))
-				.map(([key, group]) => [key + 1, group]);
+  /** @type {[number, TableRow[]][]} */
+  const pages = d3
+    .groups(rows, (_, index) => Math.floor(index / 25))
+    .map(([key, group]) => [key + 1, group]);
 
-	const heading = d3.create("h4").text("Details of the perturbed complexes.");
-	const table = d3.create("table").attr("id", "data-table");
+  const heading = d3.create("h4").text("Details of the perturbed complexes.");
+  const table = d3.create("table").attr("id", "data-table");
   const thead = table.append("thead");
 
   thead
@@ -680,32 +682,34 @@ function table(rows, viewComplex) {
     .attr("aria-label", "Sort column")
     .text(identity);
 
-	const tbody = table.append("tbody");
-	renderTableData(tbody, pages[0]?.[1] ?? [], viewComplex);
+  const tbody = table.append("tbody");
+  renderTableData(tbody, pages[0]?.[1] ?? [], viewComplex);
 
-	const paginationContainer = d3.create("div")
-				.attr("class", "table-pagination-container");
-	paginationContainer
-		.selectAll()
-		.data(pages)
-		.join("span")
-		.style("border", (_, index) => index === 0 ? "1px solid grey" : "none")
-	  .on("click", (_, [index, page]) => {
-			tbody.node()?.replaceChildren();
-			renderTableData(tbody, page, viewComplex);
-			d3
-				.selectAll("div.table-pagination-container > span")
-				.style("border", "none");
-			d3
-				.select(`div.table-pagination-container > span:nth-child(${index})`)
-				.style("border", "1px solid grey");
-		})
-		.text(([page, _]) => page.toString());
+  const paginationContainer = d3
+    .create("div")
+    .attr("class", "table-pagination-container");
+  paginationContainer
+    .selectAll()
+    .data(pages)
+    .join("span")
+    .style("border", (_, index) => (index === 0 ? "1px solid grey" : "none"))
+    .on("click", (_, [index, page]) => {
+      tbody.node()?.replaceChildren();
+      renderTableData(tbody, page, viewComplex);
+      d3.selectAll("div.table-pagination-container > span").style(
+        "border",
+        "none",
+      );
+      d3.select(
+        `div.table-pagination-container > span:nth-child(${index})`,
+      ).style("border", "1px solid grey");
+    })
+    .text(([page, _]) => page.toString());
 
   const result = [heading.node(), table.node(), paginationContainer.node()];
-	if (result.every((x) => x !== null)) {
-		return result;
-	}
+  if (result.every((x) => x !== null)) {
+    return result;
+  }
   return [];
 }
 
