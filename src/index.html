@@ -88,12 +88,12 @@
 
         <div>
           <label class="app-parameters-label" for="log2fc-threshold">log<sub>2</sub>(fold change)</label>
-          <input type="number" value="1" name="log2fc-threshold" id="log2fc-threshold" disabled>
+          <input type="number" value="1" min="0.0" step="0.1" name="log2fc-threshold" id="log2fc-threshold" disabled>
         </div>
 
         <div>
           <label class="app-parameters-label" for="adjp-threshold">Adjusted P-value threshold</label>
-          <input type="number" value="0.05" name="adjp-threshold" id="adjp-threshold" disabled>
+          <input type="number" value="0.05" min="0.0" step="0.01" name="adjp-threshold" id="adjp-threshold" disabled>
         </div>
 
         <div>

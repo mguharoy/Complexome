@@ -634,9 +634,9 @@ async function dataTable(viewComplex) {
  * @param {string} cid - The Complexome complex identifier.
  */
 function viewComplexome(cid) {
-	const nameHeader = /** @type {HTMLElement | null} */ (
-		/** @type {unknown} */ document.getElementById("complex-name")
-	);
+  const nameHeader = /** @type {HTMLElement | null} */ (
+    /** @type {unknown} */ document.getElementById("complex-name")
+  );
   const saveImageButton = /** @type {HTMLButtonElement} */ (
     /** @type {unknown} */ document.getElementById("save-image")
   );
@@ -657,9 +657,9 @@ function viewComplexome(cid) {
     saveImageButton.style.display = "block";
   }
 
-	if (nameHeader) {
-		nameHeader.innerText = cid;
-	}
+  if (nameHeader) {
+    nameHeader.innerText = cid;
+  }
 }
 
 function drawComplexomePlots() {
@@ -718,11 +718,20 @@ async function handleMessage(event) {
 async function setup() {
   controls(false);
   clearPlots();
-  const species = /** @type {HTMLInputElement | null} */ (
+  const species = /** @type {HTMLSelectElement | null} */ (
     /** @type {unknown} */ document.querySelector("#species")
   );
   const userfile = /** @type {HTMLInputElement | null} */ (
     /** @type {unknown} */ document.querySelector("#proteomics-file")
+  );
+	const log2fc = /** @type {HTMLInputElement | null} */ (
+    /** @type {unknown} */ document.querySelector("#log2fc-threshold")
+  );
+	const adjpv = /** @type {HTMLInputElement | null} */ (
+    /** @type {unknown} */ document.querySelector("#adjp-threshold")
+  );
+  const goterms = /** @type {HTMLInputElement | null} */ (
+    /** @type {unknown} */ document.querySelector("#top-n-go-terms")
   );
 
   // setup the proxy worker
@@ -752,6 +761,15 @@ async function setup() {
     );
     throw Error("Cannot complete setup: browser does not support web workers.");
   }
+
+	log2fc?.addEventListener("change", drawPlots);
+	adjpv?.addEventListener("change", drawPlots);
+
+  goterms?.addEventListener("change", () =>
+    document.getElementById("goterms")?.replaceChildren(...goTerms()),
+  );
+
+	
 }
 
 document.addEventListener("DOMContentLoaded", setup);
