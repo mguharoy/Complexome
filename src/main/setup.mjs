@@ -140,9 +140,6 @@ function controls(enable) {
   const adjp = document.getElementById("adjp-threshold");
   const goterms = document.getElementById("top-n-go-terms");
 
-  if (species && "disabled" in species) {
-    species.disabled = !enable;
-  }
   if (log2fc && "disabled" in log2fc) {
     log2fc.disabled = !enable;
   }
@@ -637,6 +634,9 @@ async function dataTable(viewComplex) {
  * @param {string} cid - The Complexome complex identifier.
  */
 function viewComplexome(cid) {
+	const nameHeader = /** @type {HTMLElement | null} */ (
+		/** @type {unknown} */ document.getElementById("complex-name")
+	);
   const saveImageButton = /** @type {HTMLButtonElement} */ (
     /** @type {unknown} */ document.getElementById("save-image")
   );
@@ -656,6 +656,10 @@ function viewComplexome(cid) {
   if (saveImageButton) {
     saveImageButton.style.display = "block";
   }
+
+	if (nameHeader) {
+		nameHeader.innerText = cid;
+	}
 }
 
 function drawComplexomePlots() {
