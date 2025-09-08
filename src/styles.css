@@ -163,6 +163,7 @@ figure.output-figure {
 span.cpx-id-col {
     color: #0000ee;
     text-decoration: underline;
+    cursor: pointer;
 }
 
 a#complexome-link {
