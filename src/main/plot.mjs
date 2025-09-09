@@ -712,7 +712,7 @@ function table(rows, viewComplex, sorting) {
               : "desc";
         const column = headingMap.get(target.innerText);
         window.dispatchEvent(
-          new CustomEvent("table-sort", {
+          new CustomEvent("custom:table-sort", {
             detail: {
               column,
               order,

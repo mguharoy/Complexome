@@ -838,7 +838,7 @@ window.addEventListener("message", (event) => {
   }
 });
 
-window.addEventListener("table-sort", async (event) => {
+window.addEventListener("custom:table-sort", async (/** @type {CustomEvent<Sorting>} */ event) => {
   document
     .getElementById("perturbed-complexes-table")
     ?.replaceChildren(
