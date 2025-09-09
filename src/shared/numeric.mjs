@@ -9,6 +9,26 @@ function identity(x) {
 }
 
 /**
+ * @template A
+ * @template B
+ * @param {[A, B]} tpl
+ * @returns {A}
+ */
+function fst(tpl) {
+	return tpl[0];
+}
+
+/**
+ * @template A
+ * @template B
+ * @param {[A, B]} tpl
+ * @returns {B}
+ */
+function snd(tpl) {
+	return tpl[1];
+}
+
+/**
  * Get the min and max from an array of numbers.
  * @overload
  * @param {number[]} data - The data to summarize.
@@ -88,4 +108,4 @@ function bisect(R, r, AB, bracket) {
   throw new Error("Could not bisect function");
 }
 
-export { identity, minmax, bisect };
+export { bisect, fst, identity, minmax, snd };

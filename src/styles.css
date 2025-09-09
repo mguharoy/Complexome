@@ -112,6 +112,14 @@ div.data-table-container table > thead > tr > th {
     cursor: pointer;
 }
 
+table#data-table > thead > tr > th[data-sorted="desc"]::after {
+    content: "▼";
+}
+
+table#data-table > thead > tr > th[data-sorted="asc"]::after {
+    content: "▲";
+}
+
 td {
     font-size: 0.6rem !important;
     padding: 3px !important;
@@ -169,3 +177,4 @@ span.cpx-id-col {
 a#complexome-link {
     display: none;
 }
+

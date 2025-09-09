@@ -5,7 +5,7 @@
 
 import * as d3 from "https://esm.run/d3";
 
-import { minmax, bisect, identity } from "../shared/numeric.mjs";
+import { minmax, bisect, identity, fst } from "../shared/numeric.mjs";
 
 /**
  * @typedef TableRow A row from the data table.
@@ -18,7 +18,7 @@ import { minmax, bisect, identity } from "../shared/numeric.mjs";
  * @property subunitID {string}
  * @property geneName {string}
  * @property log2fc {number}
- * @property adbpval {number}
+ * @property adjpval {number}
  */
 
 /**
@@ -651,44 +651,80 @@ function renderTableData(body, data, viewComplex) {
 }
 
 /**
+ * @typedef Sorting
+ * @property column {keyof TableRow}
+ * @property order {"asc" | "desc"}
+ */
+
+/**
  * Create a table.
  * @param {TableRow[]} rows
  * @param {(cid: string) => void} viewComplex
+ * @param {Sorting} sorting
  * @returns {Node[]}
  */
-function table(rows, viewComplex) {
+function table(rows, viewComplex, sorting) {
   /** @type {[number, TableRow[]][]} */
-  const pages = d3
+  let pages = d3
     .groups(rows, (_, index) => Math.floor(index / 25))
-    .map(([key, group]) => [key + 1, group]);
+			.map(([key, group]) => [key + 1, group]);
+
+	const headingMap = new Map([
+      ["Complex ID", "cid"],
+			["Complex Name", "name"],
+			["Coverage", "coverage"],
+			["Perturbation Type", "type"],
+			["Perturbation Score", "score"],
+			["Normalized Score", "normalizedScore"],
+			["Subunit ID", "subunitID"],
+			["Gene Name", "geneName"],
+      ["log2(FC)", "log2fc"],
+			["Adj. p-value", "adjpval"],
+  ]);
 
   const heading = d3.create("h4").text("Details of the perturbed complexes.");
   const table = d3.create("table").attr("id", "data-table");
   const thead = table.append("thead");
+	const tbody = table.append("tbody");
 
   thead
     .append("tr")
     .selectAll("th")
-    .data([
-      "Complex ID",
-      "Complex Name",
-      "Coverage",
-      "Perturbation Type",
-      "Perturbation Score",
-      "Normalized Score",
-      "Subunit ID",
-      "Gene Name",
-      "log2(FC)",
-      "Adj. p-value",
-    ])
+    .data(headingMap.entries())
     .enter()
     .append("th")
     .attr("tabindex", (_, i) => i)
     .attr("role", "button")
     .attr("aria-label", "Sort column")
-    .text(identity);
+		.attr("data-sorted", ([_, h]) => h === sorting.column ? sorting.order : null)
+		.on("click", (/** @type {Event} */ event) => {
+			const target = event.target;
+			// tbody.node()?.replaceChildren();
+			console.log(event);
 
-  const tbody = table.append("tbody");
+			if (target) {
+				const order = target.dataset.sorted === undefined ? "desc" : (target.dataset.sorted === "desc" ? "asc" : "desc");
+				const column = headingMap.get(target.innerText);
+				window.dispatchEvent(new CustomEvent("table-sort", {
+					detail: {
+						column, order,
+					},
+					bubbles: false,
+					cancelable: false,
+					composed: false,
+				}));
+				// maybe fire off a custom event for this?
+				// pages = d3
+				// 	.groups(rows.sort((a, b) => b[col] - a[col]), (_, index) => Math.floor(index / 25))
+				// 	.map(([key, group]) => [key + 1, group]);
+				// renderTableData(tbody, pages[0]?.[1] ?? [], viewComplex);
+				//Reset all the others
+				// Array.from(document.querySelectorAll("table#data-table > thead > tr > th")).forEach((th) => th.removeAttribute("data-sorted"));
+				// target.dataset.sorted = sortOrder;
+			}
+		})
+    .text(fst);
+
   renderTableData(tbody, pages[0]?.[1] ?? [], viewComplex);
 
   const paginationContainer = d3

@@ -14,7 +14,7 @@ import {
 } from "./plot.mjs";
 
 /**
- * @import { TableRow } from "./plot.mjs";
+ * @import { Sorting, TableRow } from "./plot.mjs";
  */
 
 /**
@@ -478,11 +478,40 @@ function whatPerturbation(other, log2fc) {
   }
 }
 
+
+/**
+ * @param {keyof TableRow} column
+ * @param {"asc" | "desc"} order
+ * @returns {(a: TableRow, b: TableRow) => number}
+ */
+function compare(column, order) {
+	console.log(column, order);
+	if (order == "asc") {
+		return (a, b) => {
+			if (typeof a[column] === "number") {
+				return +a[column] - +b[column];
+			} else {
+				return (a[column] < b[column] ? -1 : 1);
+			}
+		}
+	} else {
+		return (a, b) => {
+			if (typeof a[column] === "number") {
+				return +b[column] - +a[column];
+			} else {
+				return (b[column] < a[column] ? -1 : 1);
+			}
+		}
+	}
+}
+
 /**
  * Display the data table.
  * @param {(cid: string) => void} viewComplex - Render a complex viewer.
+ * @param {Sorting} sorting - Which column to sort in which order.
+ * @returns {Promise<Node[]>}
  */
-async function dataTable(viewComplex) {
+async function dataTable(viewComplex, sorting) {
   const log2fc = /** @type {HTMLInputElement | null} */ (
     /** @type {unknown} */ document.getElementById("log2fc-threshold")
   );
@@ -621,12 +650,12 @@ async function dataTable(viewComplex) {
         subunitID: subunit.subunit,
         geneName: geneNames.get(subunit.subunit) ?? "",
         log2fc: subunit.log2fc,
-        adbpval: subunit.apvalue,
+        adjpval: subunit.apvalue,
       };
     })
-    .sort((a, b) => +b.coverage - +a.coverage);
+		.sort(compare(sorting.column, sorting.order));
 
-  return table(tableRows, viewComplex);
+  return table(tableRows, viewComplex, sorting);
 }
 
 /**
@@ -688,7 +717,7 @@ async function drawPlots() {
   document.getElementById("goterms")?.replaceChildren(...goTerms());
   document
     .getElementById("perturbed-complexes-table")
-    ?.replaceChildren(...(await dataTable(viewComplexome)));
+    ?.replaceChildren(...(await dataTable(viewComplexome, {column: "coverage", order: "desc"})));
 }
 
 function clearPlots() {
@@ -806,3 +835,10 @@ window.addEventListener("message", (event) => {
       break;
   }
 });
+
+window.addEventListener("table-sort", async (event) => {
+	console.log(event);
+	document
+    .getElementById("perturbed-complexes-table")
+    ?.replaceChildren(...(await dataTable(viewComplexome, {column: event.detail.column, order: event.detail.order})));
+})
