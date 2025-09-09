@@ -15,7 +15,7 @@ function identity(x) {
  * @returns {A}
  */
 function fst(tpl) {
-	return tpl[0];
+  return tpl[0];
 }
 
 /**
@@ -25,7 +25,7 @@ function fst(tpl) {
  * @returns {B}
  */
 function snd(tpl) {
-	return tpl[1];
+  return tpl[1];
 }
 
 /**

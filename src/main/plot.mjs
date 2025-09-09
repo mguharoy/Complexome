@@ -628,22 +628,22 @@ function renderTableData(body, data, viewComplex) {
         }
       },
     )
-		.html(([key, data]) => {
-			if (key === "coverage" && typeof data === "number") {
-				return `${(100 * data).toFixed(1)}%`;
-			} else if (key === "cid" && typeof data === "string") {
-				return `<span class="cpx-id-col">${data}</span>`;
-			} else if (key === "subunitID" && typeof data === "string") {
-				return `<a href="https://www.uniprot.org/uniprotkb/${data}/entry" target="_blank">${data}</a>`;
-			} else if (key === "geneName" && typeof data === "string") {
-				return `<a href="https://www.genenames.org/tools/search/#!/?query=${data}" target="_blank">${data}</a>`;
-			}
-			if (typeof data === "string") {
+    .html(([key, data]) => {
+      if (key === "coverage" && typeof data === "number") {
+        return `${(100 * data).toFixed(1)}%`;
+      } else if (key === "cid" && typeof data === "string") {
+        return `<span class="cpx-id-col">${data}</span>`;
+      } else if (key === "subunitID" && typeof data === "string") {
+        return `<a href="https://www.uniprot.org/uniprotkb/${data}/entry" target="_blank">${data}</a>`;
+      } else if (key === "geneName" && typeof data === "string") {
+        return `<a href="https://www.genenames.org/tools/search/#!/?query=${data}" target="_blank">${data}</a>`;
+      }
+      if (typeof data === "string") {
         return data;
       } else {
         return data.toFixed(3).replace(/\.?0+$/, "");
       }
-		});
+    });
 
   rows.selectAll("td:first-child").on("click", (_, [_cid, cid]) => {
     viewComplex(cid);
@@ -667,25 +667,25 @@ function table(rows, viewComplex, sorting) {
   /** @type {[number, TableRow[]][]} */
   let pages = d3
     .groups(rows, (_, index) => Math.floor(index / 25))
-			.map(([key, group]) => [key + 1, group]);
+    .map(([key, group]) => [key + 1, group]);
 
-	const headingMap = new Map([
-      ["Complex ID", "cid"],
-			["Complex Name", "name"],
-			["Coverage", "coverage"],
-			["Perturbation Type", "type"],
-			["Perturbation Score", "score"],
-			["Normalized Score", "normalizedScore"],
-			["Subunit ID", "subunitID"],
-			["Gene Name", "geneName"],
-      ["log2(FC)", "log2fc"],
-			["Adj. p-value", "adjpval"],
+  const headingMap = new Map([
+    ["Complex ID", "cid"],
+    ["Complex Name", "name"],
+    ["Coverage", "coverage"],
+    ["Perturbation Type", "type"],
+    ["Perturbation Score", "score"],
+    ["Normalized Score", "normalizedScore"],
+    ["Subunit ID", "subunitID"],
+    ["Gene Name", "geneName"],
+    ["log2(FC)", "log2fc"],
+    ["Adj. p-value", "adjpval"],
   ]);
 
   const heading = d3.create("h4").text("Details of the perturbed complexes.");
   const table = d3.create("table").attr("id", "data-table");
   const thead = table.append("thead");
-	const tbody = table.append("tbody");
+  const tbody = table.append("tbody");
 
   thead
     .append("tr")
@@ -696,33 +696,34 @@ function table(rows, viewComplex, sorting) {
     .attr("tabindex", (_, i) => i)
     .attr("role", "button")
     .attr("aria-label", "Sort column")
-		.attr("data-sorted", ([_, h]) => h === sorting.column ? sorting.order : null)
-		.on("click", (/** @type {Event} */ event) => {
-			const target = event.target;
-			// tbody.node()?.replaceChildren();
-			console.log(event);
-
-			if (target) {
-				const order = target.dataset.sorted === undefined ? "desc" : (target.dataset.sorted === "desc" ? "asc" : "desc");
-				const column = headingMap.get(target.innerText);
-				window.dispatchEvent(new CustomEvent("table-sort", {
-					detail: {
-						column, order,
-					},
-					bubbles: false,
-					cancelable: false,
-					composed: false,
-				}));
-				// maybe fire off a custom event for this?
-				// pages = d3
-				// 	.groups(rows.sort((a, b) => b[col] - a[col]), (_, index) => Math.floor(index / 25))
-				// 	.map(([key, group]) => [key + 1, group]);
-				// renderTableData(tbody, pages[0]?.[1] ?? [], viewComplex);
-				//Reset all the others
-				// Array.from(document.querySelectorAll("table#data-table > thead > tr > th")).forEach((th) => th.removeAttribute("data-sorted"));
-				// target.dataset.sorted = sortOrder;
-			}
-		})
+    .attr("data-sorted", ([_, h]) =>
+      h === sorting.column ? sorting.order : null,
+    )
+    .on("click", (/** @type {MouseEvent} */ event) => {
+      const target = /** @type {HTMLElement | null} */ (
+        /** @type {unknown} */ event.target
+      );
+      if (target) {
+        const order =
+          target.dataset["sorted"] === undefined
+            ? "desc"
+            : target.dataset["sorted"] === "desc"
+              ? "asc"
+              : "desc";
+        const column = headingMap.get(target.innerText);
+        window.dispatchEvent(
+          new CustomEvent("table-sort", {
+            detail: {
+              column,
+              order,
+            },
+            bubbles: false,
+            cancelable: false,
+            composed: false,
+          }),
+        );
+      }
+    })
     .text(fst);
 
   renderTableData(tbody, pages[0]?.[1] ?? [], viewComplex);

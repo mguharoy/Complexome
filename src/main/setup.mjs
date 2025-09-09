@@ -478,31 +478,30 @@ function whatPerturbation(other, log2fc) {
   }
 }
 
-
 /**
  * @param {keyof TableRow} column
  * @param {"asc" | "desc"} order
  * @returns {(a: TableRow, b: TableRow) => number}
  */
 function compare(column, order) {
-	console.log(column, order);
-	if (order == "asc") {
-		return (a, b) => {
-			if (typeof a[column] === "number") {
-				return +a[column] - +b[column];
-			} else {
-				return (a[column] < b[column] ? -1 : 1);
-			}
-		}
-	} else {
-		return (a, b) => {
-			if (typeof a[column] === "number") {
-				return +b[column] - +a[column];
-			} else {
-				return (b[column] < a[column] ? -1 : 1);
-			}
-		}
-	}
+  console.log(column, order);
+  if (order == "asc") {
+    return (a, b) => {
+      if (typeof a[column] === "number") {
+        return +a[column] - +b[column];
+      } else {
+        return a[column] < b[column] ? -1 : 1;
+      }
+    };
+  } else {
+    return (a, b) => {
+      if (typeof a[column] === "number") {
+        return +b[column] - +a[column];
+      } else {
+        return b[column] < a[column] ? -1 : 1;
+      }
+    };
+  }
 }
 
 /**
@@ -653,7 +652,7 @@ async function dataTable(viewComplex, sorting) {
         adjpval: subunit.apvalue,
       };
     })
-		.sort(compare(sorting.column, sorting.order));
+    .sort(compare(sorting.column, sorting.order));
 
   return table(tableRows, viewComplex, sorting);
 }
@@ -666,7 +665,7 @@ function viewComplexome(cid) {
   const nameHeader = /** @type {HTMLElement | null} */ (
     /** @type {unknown} */ document.getElementById("complex-name")
   );
-	const complexomeLink = /** @type {HTMLAnchorElement | null} */ (
+  const complexomeLink = /** @type {HTMLAnchorElement | null} */ (
     /** @type {unknown} */ document.getElementById("complexome-link")
   );
   const saveImageButton = /** @type {HTMLButtonElement} */ (
@@ -693,10 +692,10 @@ function viewComplexome(cid) {
     nameHeader.innerText = cid;
   }
 
-	if (complexomeLink) {
-		complexomeLink.style.display = "block";
-		complexomeLink.href = `https://www.ebi.ac.uk/complexportal/complex/${cid}`
-	}
+  if (complexomeLink) {
+    complexomeLink.style.display = "block";
+    complexomeLink.href = `https://www.ebi.ac.uk/complexportal/complex/${cid}`;
+  }
 }
 
 function drawComplexomePlots() {
@@ -717,7 +716,12 @@ async function drawPlots() {
   document.getElementById("goterms")?.replaceChildren(...goTerms());
   document
     .getElementById("perturbed-complexes-table")
-    ?.replaceChildren(...(await dataTable(viewComplexome, {column: "coverage", order: "desc"})));
+    ?.replaceChildren(
+      ...(await dataTable(viewComplexome, {
+        column: "coverage",
+        order: "desc",
+      })),
+    );
 }
 
 function clearPlots() {
@@ -761,10 +765,10 @@ async function setup() {
   const userfile = /** @type {HTMLInputElement | null} */ (
     /** @type {unknown} */ document.querySelector("#proteomics-file")
   );
-	const log2fc = /** @type {HTMLInputElement | null} */ (
+  const log2fc = /** @type {HTMLInputElement | null} */ (
     /** @type {unknown} */ document.querySelector("#log2fc-threshold")
   );
-	const adjpv = /** @type {HTMLInputElement | null} */ (
+  const adjpv = /** @type {HTMLInputElement | null} */ (
     /** @type {unknown} */ document.querySelector("#adjp-threshold")
   );
   const goterms = /** @type {HTMLInputElement | null} */ (
@@ -799,14 +803,12 @@ async function setup() {
     throw Error("Cannot complete setup: browser does not support web workers.");
   }
 
-	log2fc?.addEventListener("change", drawPlots);
-	adjpv?.addEventListener("change", drawPlots);
+  log2fc?.addEventListener("change", drawPlots);
+  adjpv?.addEventListener("change", drawPlots);
 
   goterms?.addEventListener("change", () =>
     document.getElementById("goterms")?.replaceChildren(...goTerms()),
   );
-
-	
 }
 
 document.addEventListener("DOMContentLoaded", setup);
@@ -837,8 +839,12 @@ window.addEventListener("message", (event) => {
 });
 
 window.addEventListener("table-sort", async (event) => {
-	console.log(event);
-	document
+  document
     .getElementById("perturbed-complexes-table")
-    ?.replaceChildren(...(await dataTable(viewComplexome, {column: event.detail.column, order: event.detail.order})));
-})
+    ?.replaceChildren(
+      ...(await dataTable(viewComplexome, {
+        column: event.detail.column,
+        order: event.detail.order,
+      })),
+    );
+});
