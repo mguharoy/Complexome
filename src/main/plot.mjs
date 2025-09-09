@@ -604,6 +604,39 @@ function volcanoPlot(data, options) {
   return result[0] && result[1] ? [result[0], result[1]] : [];
 }
 
+const headingMap = new Map([
+  ["Complex ID", "cid"],
+  ["Complex Name", "name"],
+  ["Coverage", "coverage"],
+  ["Perturbation Type", "type"],
+  ["Perturbation Score", "score"],
+  ["Normalized Score", "normalizedScore"],
+  ["Subunit ID", "subunitID"],
+  ["Gene Name", "geneName"],
+  ["log2(FC)", "log2fc"],
+  ["Adj. p-value", "adjpval"],
+]);
+
+/**
+ * @param {TableRow[]} data
+ * @returns {string}
+ */
+function toCSV(data) {
+  const header = headingMap
+    .keys()
+    .map((k) => `"${k}"`)
+    .toArray()
+    .join(",");
+  const rows = data.map((row) =>
+    Object.values(row)
+      .map((value) => {
+        return typeof value === "string" ? `"${value}"` : value;
+      })
+      .join(","),
+  );
+  return [header, ...rows].join("%0D%0A");
+}
+
 /**
  * Render data rows for a table.
  * @param body {d3.Selection<HTMLTableSectionElement, undefined, null, undefined>}
@@ -668,19 +701,6 @@ function table(rows, viewComplex, sorting) {
   let pages = d3
     .groups(rows, (_, index) => Math.floor(index / 25))
     .map(([key, group]) => [key + 1, group]);
-
-  const headingMap = new Map([
-    ["Complex ID", "cid"],
-    ["Complex Name", "name"],
-    ["Coverage", "coverage"],
-    ["Perturbation Type", "type"],
-    ["Perturbation Score", "score"],
-    ["Normalized Score", "normalizedScore"],
-    ["Subunit ID", "subunitID"],
-    ["Gene Name", "geneName"],
-    ["log2(FC)", "log2fc"],
-    ["Adj. p-value", "adjpval"],
-  ]);
 
   const heading = d3.create("h4").text("Details of the perturbed complexes.");
   const table = d3.create("table").attr("id", "data-table");
@@ -749,7 +769,32 @@ function table(rows, viewComplex, sorting) {
     })
     .text(([page, _]) => page.toString());
 
-  const result = [heading.node(), table.node(), paginationContainer.node()];
+  const controlsContainer = d3
+    .create("div")
+    .classed("table-controls-container", true);
+  const exportButton = controlsContainer
+    .append("a")
+    .attr("download", "table.csv")
+    .attr("href", `data:text/plain;charset=utf-8,${toCSV(rows)}`);
+  const exportButtonImg = exportButton
+    .append("svg")
+    .attr("width", 15)
+    .attr("height", 15)
+    .attr("viewBox", [0, 0, 100, 100]);
+  exportButtonImg
+    .append("path")
+    .attr(
+      "d",
+      "M35,0 L65,0 L65,50 L80,50 L50,80 L20,50 L35,50 Z M0,58 L15,58 L15,85 L85,85 L85,58 L100,58 L100,95 A5,5,90,0,1,95,100 L5,100 A5,5,90,0,1,0,95 Z",
+    )
+    .attr("fill", "black");
+
+  const result = [
+    heading.node(),
+    controlsContainer.node(),
+    table.node(),
+    paginationContainer.node(),
+  ];
   if (result.every((x) => x !== null)) {
     return result;
   }

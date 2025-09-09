@@ -120,6 +120,23 @@ table#data-table > thead > tr > th[data-sorted="asc"]::after {
     content: "▲";
 }
 
+div.table-controls-container {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+}
+
+div.table-controls-container > a {
+    padding: 3px 5px 0px 5px;
+    border: 1px solid grey;
+    cursor: pointer;
+    display: inline-block;
+}
+
+div.table-controls-container > a:hover {
+    background-color: hsla(0, 0%, 50%, .1);
+}
+
 td {
     font-size: 0.6rem !important;
     padding: 3px !important;

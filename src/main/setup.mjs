@@ -714,14 +714,12 @@ async function drawPlots() {
   document.getElementById("venn")?.replaceChildren(...vennDiagram());
   document.getElementById("volcano")?.replaceChildren(...volcano());
   document.getElementById("goterms")?.replaceChildren(...goTerms());
-  document
-    .getElementById("perturbed-complexes-table")
-    ?.replaceChildren(
-      ...(await dataTable(viewComplexome, {
-        column: "coverage",
-        order: "desc",
-      })),
-    );
+  document.getElementById("perturbed-complexes-table")?.replaceChildren(
+    ...(await dataTable(viewComplexome, {
+      column: "coverage",
+      order: "desc",
+    })),
+  );
 }
 
 function clearPlots() {
@@ -838,13 +836,14 @@ window.addEventListener("message", (event) => {
   }
 });
 
-window.addEventListener("custom:table-sort", async (/** @type {CustomEvent<Sorting>} */ event) => {
-  document
-    .getElementById("perturbed-complexes-table")
-    ?.replaceChildren(
+window.addEventListener(
+  "custom:table-sort",
+  async (/** @type {CustomEvent<Sorting>} */ event) => {
+    document.getElementById("perturbed-complexes-table")?.replaceChildren(
       ...(await dataTable(viewComplexome, {
         column: event.detail.column,
         order: event.detail.order,
       })),
     );
-});
+  },
+);
