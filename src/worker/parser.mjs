@@ -145,7 +145,11 @@ self.onmessage = async (event) => {
 
     case "csv": {
       const result = tsvParse(data, ",");
-      self.postMessage({ userdata: processUserData(result) });
+      self.postMessage({
+        userdata: result,
+        filename: event.data.filename,
+        size: event.data.size,
+      });
       break;
     }
   }

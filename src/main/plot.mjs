@@ -5,7 +5,7 @@
 
 import * as d3 from "https://esm.run/d3";
 
-import { minmax, bisect, identity, fst } from "../shared/numeric.mjs";
+import { minmax, bisect, fst } from "../shared/numeric.mjs";
 
 /**
  * @typedef TableRow A row from the data table.

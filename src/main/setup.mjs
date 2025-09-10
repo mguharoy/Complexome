@@ -13,8 +13,11 @@ import {
   volcanoPlot,
 } from "./plot.mjs";
 
+import { rows } from "../shared/tsv.mjs";
+
 /**
  * @import { Sorting, TableRow } from "./plot.mjs";
+ * @import { TSV } from "../shared/tsv.mjs";
  */
 
 /**
@@ -27,9 +30,15 @@ async function onProteomicsFile(csv) {
   );
   const files = userfile?.files;
   if (files && files.length === 1) {
+    files[0]?.name;
     const text = await files[0]?.text();
     if (text) {
-      csv.postMessage({ op: "csv", data: text });
+      csv.postMessage({
+        op: "csv",
+        data: text,
+        filename: files[0]?.name,
+        size: files[0]?.size,
+      });
     }
   }
 }
@@ -733,20 +742,150 @@ function clearPlots() {
 }
 
 /**
+ * @typedef FileInfo
+ * @property filename {string}
+ * @property size {number}
+ * @property tsv {TSV}
+ */
+
+/**
+ * @param {FileInfo} info
+ * @param {(tsv: TSV, log2fc: number, adjpv: number) => void} onChange
+ * @returns {HTMLElement}
+ */
+function displayFileInfo(info, onChange) {
+  const container = document.createElement("div");
+  container.className = "tsv-column-selection";
+  const fileinfo = document.createElement("div");
+  fileinfo.className = "file-info";
+  const filename = document.createElement("h5");
+  filename.className = "file-name";
+  filename.innerText = info.filename;
+
+  const filestats = document.createElement("div");
+  filestats.className = "file-stats";
+  filestats.innerText = `${info.tsv.rows} rows • ${info.tsv.columns.length} columns • ${(info.size / 1024).toFixed(1)} KiB`;
+
+  const columnSelection = document.createElement("div");
+  columnSelection.className = "column-selection";
+  const log2fcGroup = document.createElement("div");
+  log2fcGroup.className = "column-group";
+  const log2fcLabel = document.createElement("label");
+  log2fcLabel.className = "column-label";
+  log2fcLabel.innerText = "Log2(FC) column";
+  log2fcGroup.appendChild(log2fcLabel);
+  const log2fcSelect = document.createElement("select");
+  log2fcSelect.className = "column-select";
+  log2fcSelect.id = "log2fc-select";
+  const adjpvGroup = document.createElement("div");
+  adjpvGroup.className = "column-group";
+  const adjpvLabel = document.createElement("label");
+  adjpvLabel.className = "column-label";
+  adjpvLabel.innerText = "Adj. p-value column";
+  adjpvGroup.appendChild(adjpvLabel);
+  const adjpvSelect = document.createElement("select");
+  adjpvSelect.className = "column-select";
+  adjpvSelect.id = "adjpv-select";
+  /** @type {[string, string][]} */
+  const colOptions = info.tsv.headers.map((col, i) => [col, i.toString()]);
+  [colOptions[1], colOptions[0], ...colOptions.slice(2)].forEach((opt) => {
+    if (opt) {
+      log2fcSelect.appendChild(new Option(...opt));
+    }
+  });
+  [colOptions[2], colOptions[1], colOptions[0], ...colOptions.slice(3)].forEach(
+    (opt) => {
+      if (opt) {
+        adjpvSelect.appendChild(new Option(...opt));
+      }
+    },
+  );
+  log2fcSelect.addEventListener("change", () =>
+    onChange(
+      info.tsv,
+      parseInt(log2fcSelect.value),
+      parseInt(adjpvSelect.value),
+    ),
+  );
+  log2fcGroup.appendChild(log2fcSelect);
+  adjpvSelect.addEventListener("change", () =>
+    onChange(
+      info.tsv,
+      parseInt(log2fcSelect.value),
+      parseInt(adjpvSelect.value),
+    ),
+  );
+  adjpvGroup.appendChild(adjpvSelect);
+  columnSelection.appendChild(log2fcGroup);
+  columnSelection.appendChild(adjpvGroup);
+
+  fileinfo.appendChild(filename);
+  fileinfo.appendChild(filestats);
+  container.appendChild(fileinfo);
+  container.appendChild(columnSelection);
+  return container;
+}
+
+/**
+ * @param {TSV} tsv
+ * @param {number} log2fc
+ * @param {number} adjpv
+ * @returns {Map<string, [number, number]>}
+ */
+function extractUserdata(tsv, log2fc, adjpv) {
+  const result = new Map();
+
+  for (const row of rows(tsv)) {
+    const log2fcVal = parseFloat(row[log2fc] ?? "nan");
+    const adjpVal = parseFloat(row[adjpv] ?? "nan");
+    if (isNaN(log2fcVal) || isNaN(adjpVal)) {
+      continue;
+    }
+    result.set(row[0], [log2fcVal, adjpVal]);
+  }
+
+  return result;
+}
+
+/**
+ * @param {TSV} tsv
+ * @param {number} log2fc
+ * @param {number} adjpv
+ */
+async function onChangeColumn(tsv, log2fc, adjpv) {
+  window.userdata = extractUserdata(tsv, log2fc, adjpv);
+  if (window.complexome) {
+    await drawPlots();
+  }
+}
+
+/**
  * Handle messages from the worker thread.
  * @param {MessageEvent} event
  */
 async function handleMessage(event) {
   if ("userdata" in event.data) {
-    controls(true);
-    window.userdata = event.data["userdata"];
-    if (window.complexome) {
-      await drawPlots();
-    }
+    // controls(true);
+    // window.userdata = event.data["userdata"];
+    // if (window.complexome) {
+    //   await drawPlots();
+    // }
+    await onChangeColumn(event.data.userdata, 1, 2);
+    document.getElementById("upload-area")?.replaceWith(
+      displayFileInfo(
+        {
+          filename: event.data.filename,
+          size: event.data.size,
+          tsv: event.data.userdata,
+        },
+        onChangeColumn,
+      ),
+    );
   } else if ("complex" in event.data) {
     window.complexome = event.data["complex"];
     drawComplexomePlots();
     if (window.userdata) {
+      controls(true);
       await drawPlots();
     }
   } else {
@@ -760,6 +899,7 @@ async function setup() {
   const species = /** @type {HTMLSelectElement | null} */ (
     /** @type {unknown} */ document.querySelector("#species")
   );
+  const uploadArea = document.querySelector("#upload-area");
   const userfile = /** @type {HTMLInputElement | null} */ (
     /** @type {unknown} */ document.querySelector("#proteomics-file")
   );
@@ -774,7 +914,7 @@ async function setup() {
   );
 
   // setup the proxy worker
-  //await registerServiceWorker();
+  await registerServiceWorker();
 
   // setup the CSV parsing worker
   if (window.Worker) {
@@ -783,6 +923,7 @@ async function setup() {
 
     // Handle proteomics file changes
     userfile?.addEventListener("change", () => onProteomicsFile(csvWorker));
+    uploadArea?.addEventListener("click", () => userfile?.click());
 
     // Handle species changes
     species?.addEventListener("change", () =>
