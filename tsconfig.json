@@ -36,6 +36,7 @@
 		"src/globals.d.ts"
 	],
 	"exclude": [
+		"src/cache.mjs",
 		"src/worker/**/*"
 	]
 }

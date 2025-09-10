@@ -46,8 +46,9 @@ async function onProteomicsFile(csv) {
 async function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
     try {
-      const registration = await navigator.serviceWorker.register("cache.mjs", {
-        scope: "./",
+      const registration = await navigator.serviceWorker.register("/cache.mjs", {
+        scope: "/",
+				type: "module",
       });
       if (registration.installing) {
         console.log("Service worker installing...");
