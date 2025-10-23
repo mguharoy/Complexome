@@ -821,6 +821,9 @@ def format_output_table_data(
     )
     coverage = proteomics_coverage_of_complexome(complexome)
     perturbation = perturbation_scores(complexome, perturbed_complex_subunits)
+    count_de_subunits = defaultdict(int)
+    for de_subunit in perturbed_complex_subunits:
+        count_de_subunits[de_subunit.complex_id] += 1
     data = sorted(
         [
             OutputTableRow(
@@ -848,6 +851,7 @@ def format_output_table_data(
             "Perturbation Type",
             "Perturbation Score",
             "Normalized Score",
+            "Num DE subunits",
             "Subunit Id",
             "Gene Name",
             "Log2FC",
@@ -861,6 +865,7 @@ def format_output_table_data(
             info.perturbationType,
             f"{info.perturbationScore:.2f}",
             f"{info.perturbationScoreNormalized:.2f}",
+            f"{count_de_subunits[info.complex_id]}",
             info.subunit,
             info.genename,
             f"{info.log2fc:.2f}",
