@@ -1,4 +1,4 @@
-# Complexome
+# ComplexomeProfiler
 
 An application to discover insights from proteomics data by integrating with the complexome (available for multiple species). The core principle behind this software tool is that a more comprehensive understanding of functional perturbations can be achieved by contextualizing affected (i.e., differentially expressed) proteins within their complexes and functional assemblies in the cellular environment. Proteomics log fold change data (and associated statistical values) are used to analyze complexome remodeling between biological conditions (example, disease vs healthy control). Useful to understand disease phenotypes and identify (clinical) biomarkers.
 
